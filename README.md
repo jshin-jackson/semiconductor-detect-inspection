@@ -142,6 +142,10 @@ python scripts/generate_normal_images.py --train-count 300 --test-count 50 --siz
 python scripts/generate_defects.py --count 60 --seed 42
 ```
 
+생성된 정상 웨이퍼 이미지는 다음과 같이 그리드 패턴과 가우시안 노이즈로 구성됩니다:
+
+![합성 웨이퍼 이미지](docs/screenshots/screenshot-data-wafers.png)
+
 ---
 
 ### 4단계. Iceberg 테이블 및 StarRocks 카탈로그 초기화
@@ -219,6 +223,40 @@ npm run dev
 | 차트 | Recharts |
 | 라우팅 | React Router v6 |
 | API 연동 | Vite proxy `/api/*` → `http://localhost:8000/*` |
+
+---
+
+## 스크린샷
+
+### 대시보드 — 서버 상태 · 모델 정보 · 오늘의 검사 통계
+
+![대시보드](docs/screenshots/screenshot-dashboard.png)
+
+> API 서버, 모델 로드 여부, MinIO / StarRocks 연결 상태를 한눈에 확인하고 오늘의 검사 건수 · 결함 건수 · 평균 이상 점수를 표시합니다. 30초마다 자동 갱신됩니다.
+
+---
+
+### 검사 — 이미지 업로드 및 결함 추론
+
+![이미지 검사](docs/screenshots/screenshot-inspect.png)
+
+> PNG / JPEG / BMP 이미지를 드래그&드롭하면 즉시 PaDiM 모델로 추론하여 이상 점수(0~1) 게이지와 결함/정상 판정 배지를 출력합니다. 히트맵은 MinIO에 자동 저장됩니다.
+
+---
+
+### 이력 — 검사 기록 테이블
+
+![검사 이력](docs/screenshots/screenshot-history.png)
+
+> 최근 검사 이력을 파일명 · 이상 점수 · 결함 여부 · 검사 시각 · 모델 버전 컬럼으로 표시합니다. 조회 건수를 20 / 50 / 100 / 200 건으로 선택할 수 있습니다.
+
+---
+
+### 통계 — 일별 검사 건수 · 이상 점수 차트
+
+![일별 통계](docs/screenshots/screenshot-stats.png)
+
+> Recharts 막대 차트(총 검사 vs 결함 건수)와 꺾은선 차트(평균 이상 점수 추이)를 함께 표시합니다. 하단 테이블에서 날짜별 세부 수치를 확인할 수 있습니다.
 
 ---
 
