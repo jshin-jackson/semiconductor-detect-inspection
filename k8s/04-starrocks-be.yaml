@@ -1,0 +1,117 @@
+# StarRocks Backend (BE)
+# FE가 준비된 후 기동 — initContainer에서 BE를 FE에 등록
+# 외부 쿼리 포트: localhost:8040
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: starrocks-be
+  namespace: semiconductor-poc
+  labels:
+    app: starrocks-be
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: starrocks-be
+  template:
+    metadata:
+      labels:
+        app: starrocks-be
+    spec:
+      initContainers:
+        # FE MySQL 포트가 열릴 때까지 대기 — 별도 이미지 없이 BE 이미지 재사용
+        - name: wait-for-fe
+          image: starrocks/be-ubuntu:4.0-latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - -c
+            - |
+              echo "StarRocks FE 준비 대기 중..."
+              until bash -c "echo > /dev/tcp/starrocks-fe/9030" 2>/dev/null; do
+                echo "FE 포트 9030 대기 중..."
+                sleep 5
+              done
+              echo "FE 준비 완료."
+              sleep 10
+      containers:
+        - name: starrocks-be
+          image: starrocks/be-ubuntu:4.0-latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - -c
+            - |
+              ulimit -u 65535 || true
+              ulimit -n 65535 || true
+              echo "# data cache" >> /opt/starrocks/be/conf/be.conf
+              echo "block_cache_enable = true" >> /opt/starrocks/be/conf/be.conf
+              echo "block_cache_mem_size = 536870912" >> /opt/starrocks/be/conf/be.conf
+              echo "block_cache_disk_size = 1073741824" >> /opt/starrocks/be/conf/be.conf
+              MY_IP=$(hostname -i | awk '{print $1}')
+              echo "BE 파드 IP: $MY_IP"
+              mysql --connect-timeout 5 -h starrocks-fe -P 9030 -u root \
+                -e "ALTER SYSTEM ADD BACKEND \"$MY_IP:9050\";" || true
+              echo "BE 등록 완료 (또는 이미 등록됨). BE 기동..."
+              bash /opt/starrocks/be/bin/start_be.sh
+          env:
+            - name: HOST_TYPE
+              value: "IP"
+          ports:
+            - containerPort: 8040
+              name: http
+            - containerPort: 9050
+              name: heartbeat
+            - containerPort: 9060
+              name: brpc
+          readinessProbe:
+            tcpSocket:
+              port: 9050
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 10
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "250m"
+            limits:
+              memory: "3Gi"
+              cpu: "2000m"
+---
+# ClusterIP Service — FE가 BE의 9050(heartbeat) 포트로 접근하는 데 사용
+apiVersion: v1
+kind: Service
+metadata:
+  name: starrocks-be
+  namespace: semiconductor-poc
+  labels:
+    app: starrocks-be
+spec:
+  type: ClusterIP
+  selector:
+    app: starrocks-be
+  ports:
+    - name: heartbeat
+      port: 9050
+      targetPort: 9050
+    - name: brpc
+      port: 9060
+      targetPort: 9060
+---
+# LoadBalancer — 로컬 호스트에서 localhost:8040 접근 (Docker Desktop)
+apiVersion: v1
+kind: Service
+metadata:
+  name: starrocks-be-lb
+  namespace: semiconductor-poc
+  labels:
+    app: starrocks-be
+spec:
+  type: LoadBalancer
+  selector:
+    app: starrocks-be
+  ports:
+    - name: http
+      port: 8040
+      targetPort: 8040

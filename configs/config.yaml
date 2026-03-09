@@ -1,0 +1,49 @@
+data:
+  root: ./data
+  normal_dir: train/good
+  test_normal_dir: test/good
+  abnormal_dir: test/defect
+  image_size: 256
+
+model:
+  backbone: resnet18
+  layers:
+    - layer1
+    - layer2
+    - layer3
+  n_features: 100
+  accelerator: cpu
+
+inference:
+  threshold: 0.5
+
+minio:
+  endpoint: localhost:9000
+  access_key: admin
+  secret_key: password
+  bucket: warehouse
+  secure: false
+
+iceberg:
+  rest_uri: http://localhost:8181
+  warehouse: "s3://warehouse/"
+  namespace: default
+  table: inspection_results
+
+starrocks:
+  host: localhost
+  port: 9030
+  user: root
+  password: ""
+  database: ""
+
+output:
+  results_dir: ./data/results
+  weights_dir: ./weights
+
+# Kubernetes 클러스터 내부 서비스 주소
+# StarRocks (파드 내부) → MinIO / Iceberg REST 접근 시 사용
+# 외부(호스트)에서는 위의 minio.endpoint / iceberg.rest_uri 사용
+k8s_internal:
+  minio_endpoint: "http://minio.semiconductor-poc.svc.cluster.local:9000"
+  iceberg_rest_uri: "http://iceberg-rest.semiconductor-poc.svc.cluster.local:8181"

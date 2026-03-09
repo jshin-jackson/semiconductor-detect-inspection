@@ -1,0 +1,73 @@
+# Apache Iceberg REST 카탈로그
+# MinIO를 warehouse로 사용 (클러스터 내부 DNS: http://minio:9000)
+# 외부 접근: http://localhost:8181
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iceberg-rest
+  namespace: semiconductor-poc
+  labels:
+    app: iceberg-rest
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: iceberg-rest
+  template:
+    metadata:
+      labels:
+        app: iceberg-rest
+    spec:
+      containers:
+        - name: iceberg-rest
+          image: tabulario/iceberg-rest:1.6.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              value: "admin"
+            - name: AWS_SECRET_ACCESS_KEY
+              value: "password"
+            - name: AWS_REGION
+              value: "us-east-1"
+            - name: CATALOG_WAREHOUSE
+              value: "s3://warehouse/"
+            - name: CATALOG_IO__IMPL
+              value: "org.apache.iceberg.aws.s3.S3FileIO"
+            # 클러스터 내부 DNS로 MinIO 접근 (path-style 강제 — MinIO 필수)
+            - name: CATALOG_S3_ENDPOINT
+              value: "http://minio:9000"
+            - name: CATALOG_S3_PATH__STYLE__ACCESS
+              value: "true"
+          ports:
+            - containerPort: 8181
+              name: rest
+          readinessProbe:
+            httpGet:
+              path: /v1/config
+              port: 8181
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "50m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iceberg-rest
+  namespace: semiconductor-poc
+  labels:
+    app: iceberg-rest
+spec:
+  type: LoadBalancer
+  selector:
+    app: iceberg-rest
+  ports:
+    - name: rest
+      port: 8181
+      targetPort: 8181

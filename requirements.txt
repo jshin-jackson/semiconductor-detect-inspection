@@ -1,0 +1,40 @@
+# Python 3.11 기준 의존성 목록
+# anomalib 1.x API (Padim) 사용 — 2.x 는 API 변경 가능성 있어 상한 고정
+# [core] extras 설치 필요: pip install "anomalib[core]>=1.1.0,<2.0.0"
+anomalib[core]>=1.1.0,<2.0.0
+
+# anomalib 1.x 는 PyTorch Lightning 에 의존
+lightning>=2.1.0,<3.0.0
+
+# scikit-learn (anomalib 내부 Kolektor dataset 등 의존성)
+scikit-learn>=1.3.0
+
+fastapi>=0.110.0,<1.0.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.9
+pydantic>=2.0.0,<3.0.0
+pillow>=10.0.0
+
+# numpy: imgaug 0.4.0 이 numpy 2.x 미지원 → 1.x 고정
+numpy>=1.24.0,<2.0.0
+
+matplotlib>=3.7.0
+
+# opencv-python-headless: numpy 1.x 와 호환되는 버전 (<4.11)
+opencv-python-headless>=4.8.0,<4.11.0
+
+pyyaml>=6.0
+
+# PyTorch 2.1+ — Python 3.11 공식 지원 / M2 Mac CPU 추론 가능
+torch>=2.1.0,<3.0.0
+torchvision>=0.16.0,<1.0.0
+
+minio>=7.2.0
+
+# pyiceberg 0.7+ — Python 3.9+ 지원 (3.11 포함)
+pyiceberg[s3fs,pyarrow]>=0.7.0,<1.0.0
+pyarrow>=14.0.0,<18.0.0
+
+pymysql>=1.1.0
+pandas>=2.0.0,<3.0.0
+scipy>=1.11.0
