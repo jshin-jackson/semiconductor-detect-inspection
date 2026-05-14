@@ -1,113 +1,113 @@
-# 반도체 결함 검사 PoC
+# Semiconductor Defect Inspection PoC
 
-## 이게 뭔가요? (처음 보시는 분을 위한 한 줄 설명)
+## What is this?
 
-> **"웨이퍼 이미지를 올리면 AI가 결함 여부를 0.01초 만에 알려주는 시스템입니다."**
+> **"Upload a wafer image, and the AI tells you if there's a defect — in under 0.01 seconds."**
 
 ---
 
-### 좀 더 자세히 설명하면
+### A bit more detail
 
-반도체를 만들 때 웨이퍼(동그란 실리콘 판) 표면에 스크래치, 오염, 점 결함이 생기면 불량품이 됩니다.
-보통은 사람이 현미경으로 직접 확인하지만, 이 프로젝트는 **AI 모델이 이미지를 보고 자동으로 판별**합니다.
+When making semiconductors, defects like scratches, contamination, or spots on a wafer (a round silicon disk) cause the product to fail.
+Normally, a person inspects the wafer under a microscope. This project replaces that with an **AI model that looks at images and decides automatically**.
 
 ```
-웨이퍼 이미지 업로드
+Upload a wafer image
         ↓
-  AI 모델이 분석
+  AI model analyzes it
         ↓
-"정상입니다" 또는 "결함 감지 (점수: 0.94)"
+"Normal" or "Defect detected (score: 0.94)"
         ↓
-  결함 위치를 히트맵으로 시각화
+  Defect location shown as a heatmap
         ↓
-  검사 기록이 DB에 자동 저장
+  Inspection record saved to DB automatically
 ```
 
-### 핵심 포인트 3가지
+### 3 key highlights
 
-| # | 포인트 | 설명 |
-|---|--------|------|
-| 1 | **실제 공장 이미지가 없어도 됩니다** | 이 프로젝트가 직접 가짜 결함 이미지를 만들어서 AI를 학습시킵니다 |
-| 2 | **웹 브라우저에서 바로 사용합니다** | `http://localhost:5173` 접속 → 이미지 드래그&드롭 → 즉시 결과 확인 |
-| 3 | **검사 이력이 자동으로 쌓입니다** | 언제, 어떤 이미지에서, 몇 점짜리 결함이 나왔는지 통계로 볼 수 있습니다 |
+| # | Highlight | Description |
+|---|-----------|-------------|
+| 1 | **No real factory images needed** | This project generates synthetic defect images and trains the AI on them |
+| 2 | **Works right in the browser** | Go to `http://localhost:5173` → drag & drop an image → see results instantly |
+| 3 | **Inspection history is recorded automatically** | View stats on when defects occurred, what images triggered them, and their scores |
 
-### 화면 미리보기
+### Screenshots
 
-| 대시보드 | 검사 화면 |
-|---------|----------|
-| ![대시보드](docs/screenshots/screenshot-dashboard.png) | ![검사](docs/screenshots/screenshot-inspect.png) |
+| Dashboard | Inspect |
+|-----------|---------|
+| ![Dashboard](docs/screenshots/screenshot-dashboard.png) | ![Inspect](docs/screenshots/screenshot-inspect.png) |
 
-| 검사 이력 | 일별 통계 |
-|----------|----------|
-| ![이력](docs/screenshots/screenshot-history.png) | ![통계](docs/screenshots/screenshot-stats.png) |
-
----
-
-### 기술적으로는 어떻게 동작하나요?
-
-1. **AI 모델 (PaDiM)** — 정상 이미지만 학습해서 "정상의 기준"을 익힙니다. 이후 새 이미지가 그 기준에서 얼마나 벗어나는지를 점수(0~1)로 계산합니다. 0.5 이상이면 결함으로 판정합니다.
-2. **백엔드 API (FastAPI)** — 이미지를 받아 모델에 통과시키고, 결과를 저장하고, 이력을 조회하는 6개의 API를 제공합니다.
-3. **저장소** — 히트맵 이미지는 MinIO(오브젝트 스토리지)에, 검사 기록은 Apache Iceberg 테이블(StarRocks로 SQL 조회 가능)에 저장됩니다.
-4. **인프라** — 위 서비스들(MinIO, Iceberg, StarRocks)은 Kubernetes 위에서 컨테이너로 실행됩니다. Docker Desktop만 있으면 맥북에서 바로 구동됩니다.
-5. **Web UI** — React로 만든 브라우저 화면에서 이미지 업로드부터 통계 조회까지 모두 가능합니다.
+| History | Daily Stats |
+|---------|-------------|
+| ![History](docs/screenshots/screenshot-history.png) | ![Stats](docs/screenshots/screenshot-stats.png) |
 
 ---
 
-PaDiM(Patch Distribution Modeling) 알고리즘 기반의 반도체 웨이퍼 이상 탐지 기술 검증 프로젝트입니다.
-실제 장비 이미지 없이도 합성 데이터만으로 학습·추론·분석·시각화 파이프라인 전체를 검증할 수 있습니다.
+### How does it work technically?
 
-| 구분 | 내용 |
-|------|------|
-| 모델 | PaDiM + ResNet18 (anomalib 1.x) |
-| 데이터 | 절차적 합성 이미지 자동 생성 (실제 이미지 불필요) |
-| API | FastAPI 추론 서버 (6개 엔드포인트) |
-| **Web UI** | **React 18 + Vite + TypeScript (4개 화면)** |
-| 인프라 | Kubernetes (Docker Desktop) |
-| 오브젝트 스토리지 | MinIO |
-| 테이블 포맷 | Apache Iceberg (REST 카탈로그) |
-| 분석 DB | StarRocks |
+1. **AI model (PaDiM)** — Trains only on normal images to learn "what normal looks like." When a new image comes in, it scores how different it is from normal (0–1). A score of 0.5 or higher is flagged as a defect.
+2. **Backend API (FastAPI)** — Receives images, runs them through the model, saves results, and provides 6 API endpoints.
+3. **Storage** — Heatmap images go to MinIO (object storage). Inspection records go to an Apache Iceberg table (queryable via StarRocks SQL).
+4. **Infrastructure** — MinIO, Iceberg, and StarRocks all run as containers on Kubernetes. You only need Docker Desktop to run everything on a Mac.
+5. **Web UI** — A React app in the browser handles everything from uploading images to viewing stats.
 
 ---
 
-## 아키텍처
+Based on the PaDiM (Patch Distribution Modeling) algorithm for semiconductor wafer anomaly detection.
+The full pipeline — training, inference, analysis, and visualization — works entirely on synthetic data. No real equipment images required.
+
+| Component | Details |
+|-----------|---------|
+| Model | PaDiM + ResNet18 (anomalib 1.x) |
+| Data | Procedurally generated synthetic images (no real images needed) |
+| API | FastAPI inference server (6 endpoints) |
+| **Web UI** | **React 18 + Vite + TypeScript (4 pages)** |
+| Infrastructure | Kubernetes (Docker Desktop) |
+| Object Storage | MinIO |
+| Table Format | Apache Iceberg (REST catalog) |
+| Analytics DB | StarRocks |
+
+---
+
+## Architecture
 
 ```
-[정상 이미지 자동 생성] ──▶ [PaDiM 학습] ──▶ [체크포인트] ──▶ MinIO (K8s)
-                                                                    │
-[테스트 이미지] ──▶ [FastAPI /predict] ──▶ 이상 점수 ──▶ MinIO (히트맵)
+[Auto-generate normal images] ──▶ [PaDiM training] ──▶ [Checkpoint] ──▶ MinIO (K8s)
+                                                                              │
+[Test image] ──▶ [FastAPI /predict] ──▶ Anomaly score ──▶ MinIO (heatmap)
                                                │
-                                               └──▶ Iceberg 테이블 (MinIO)
+                                               └──▶ Iceberg table (MinIO)
                                                           │
-                                                 StarRocks SQL 분석 (K8s)
+                                                 StarRocks SQL analytics (K8s)
                                                           │
                                             [React Web UI :5173] ◀──┘
 ```
 
-### Kubernetes 리소스 구조
+### Kubernetes resource layout
 
 ```
 semiconductor-poc (Namespace)
-├── minio               Deployment + LoadBalancer (9000 API, 9001 콘솔)
-├── minio-init          Job  (warehouse 버킷 초기화 — mc alias set / mc anonymous set)
-├── iceberg-rest        Deployment + LoadBalancer (8181, path-style S3 설정)
+├── minio               Deployment + LoadBalancer (9000 API, 9001 console)
+├── minio-init          Job  (initializes warehouse bucket — mc alias set / mc anonymous set)
+├── iceberg-rest        Deployment + LoadBalancer (8181, path-style S3)
 ├── starrocks-fe        Deployment + ClusterIP + LoadBalancer (9030)
-└── starrocks-be        Deployment + ClusterIP + LoadBalancer (8040, initContainer로 FE 대기)
+└── starrocks-be        Deployment + ClusterIP + LoadBalancer (8040, initContainer waits for FE)
 ```
 
 ---
 
-## 사전 요구사항
+## Prerequisites
 
-| 항목 | 버전 / 조건 |
-|------|-------------|
+| Item | Version / Requirement |
+|------|-----------------------|
 | Python | **3.11** |
-| Node.js | **18 이상** (Web UI 빌드용) |
-| Docker Desktop | 최신 버전 (Apple Silicon 지원) |
-| Kubernetes | Docker Desktop 설정에서 활성화, **v1.34.x 이상** 확인 |
-| kubectl | Docker Desktop 설치 시 자동 포함 |
-| 메모리 (Docker Desktop) | **6 GB 이상** 권장 (StarRocks FE + BE 동시 구동) |
+| Node.js | **18 or later** (for Web UI build) |
+| Docker Desktop | Latest version (Apple Silicon supported) |
+| Kubernetes | Enable in Docker Desktop settings, **v1.34.x or later** |
+| kubectl | Included automatically with Docker Desktop |
+| Memory (Docker Desktop) | **6 GB or more** recommended (StarRocks FE + BE running together) |
 
-**Kubernetes 활성화 확인:**
+**Verify Kubernetes is enabled:**
 
 ```bash
 kubectl cluster-info
@@ -117,16 +117,16 @@ kubectl version --short
 # Server Version: v1.34.x
 ```
 
-**Docker Desktop 메모리 설정:**  
+**Set Docker Desktop memory:**  
 Docker Desktop → Settings → Resources → Memory ≥ 6 GB
 
 ---
 
-## 빠른 시작
+## Quick Start
 
-### 1단계. 의존성 설치
+### Step 1. Install dependencies
 
-Python 3.11 가상환경을 만들고 패키지를 설치합니다.
+Create a Python 3.11 virtual environment and install packages.
 
 ```bash
 python3.11 -m venv .venv
@@ -134,107 +134,107 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-> `requirements.txt` 는 `anomalib>=1.1.0,<2.0.0`, `torch>=2.1.0,<3.0.0` 등 Python 3.11 호환 버전 범위로 고정되어 있습니다.
+> `requirements.txt` pins compatible version ranges for Python 3.11, including `anomalib>=1.1.0,<2.0.0` and `torch>=2.1.0,<3.0.0`.
 
 ---
 
-### 2단계. Kubernetes 인프라 배포
+### Step 2. Deploy Kubernetes infrastructure
 
 ```bash
 ./scripts/k8s-deploy.sh
 ```
 
-스크립트가 순서대로 수행하는 작업:
+The script does the following in order:
 
-1. `semiconductor-poc` 네임스페이스 생성
-2. MinIO Deployment + PVC(10 Gi) + LoadBalancer Service 배포
-3. `minio-init` Job으로 `warehouse` 버킷 자동 생성  
-   (`mc alias set` / `mc anonymous set` — MinIO MC 2024 버전 명령어 사용)
-4. Iceberg REST 카탈로그 배포 (MinIO path-style S3 접근 설정 포함)
-5. StarRocks FE 배포 및 준비 대기
-6. StarRocks BE 배포 (initContainer가 FE 포트 9030 대기 후 자동 등록)
+1. Creates the `semiconductor-poc` namespace
+2. Deploys MinIO Deployment + PVC (10 Gi) + LoadBalancer Service
+3. Runs the `minio-init` Job to auto-create the `warehouse` bucket  
+   (uses `mc alias set` / `mc anonymous set` — MinIO MC 2024 syntax)
+4. Deploys the Iceberg REST catalog (with MinIO path-style S3 access configured)
+5. Deploys StarRocks FE and waits for it to be ready
+6. Deploys StarRocks BE (initContainer waits for FE port 9030, then registers automatically)
 
-배포 후 서비스 접근 주소:
+Service endpoints after deployment:
 
-| 서비스 | 호스트 주소 | 자격증명 |
-|--------|-------------|----------|
+| Service | Address | Credentials |
+|---------|---------|-------------|
 | MinIO API | http://localhost:9000 | admin / password |
-| MinIO 콘솔 | http://localhost:9001 | admin / password |
+| MinIO Console | http://localhost:9001 | admin / password |
 | Iceberg REST | http://localhost:8181 | — |
-| StarRocks MySQL | localhost:9030 | root / (비밀번호 없음) |
+| StarRocks MySQL | localhost:9030 | root / (no password) |
 | StarRocks BE HTTP | http://localhost:8040 | — |
 | FastAPI | http://localhost:8000 | — |
 | **Web UI** | **http://localhost:5173** | — |
 
-**파드 상태 모니터링:**
+**Monitor pod status:**
 
 ```bash
 ./scripts/k8s-deploy.sh --status
-# 또는
+# or
 kubectl get pods -n semiconductor-poc -w
 ```
 
-> M2 Mac 참고: StarRocks BE의 initContainer가 FE 준비를 확인 후 기동하므로 전체 Ready 까지 2~3분 소요됩니다.
+> Note for M2 Mac: The StarRocks BE initContainer waits for FE to be ready before starting. Expect 2–3 minutes for everything to reach Ready.
 
 ---
 
-### 3단계. 학습 데이터 자동 생성
+### Step 3. Generate training data
 
 ```bash
-# 정상 이미지 생성: data/train/good 200장 + data/test/good 30장
+# Normal images: 200 for data/train/good + 30 for data/test/good
 python scripts/generate_normal_images.py
 
-# 결함 이미지 생성: data/test/defect 30장 (scratch / spot / contamination)
+# Defect images: 30 for data/test/defect (scratch / spot / contamination)
 python scripts/generate_defects.py
 ```
 
-옵션을 지정할 수도 있습니다:
+You can also pass options:
 
 ```bash
 python scripts/generate_normal_images.py --train-count 300 --test-count 50 --size 256
 python scripts/generate_defects.py --count 60 --seed 42
 ```
 
-생성된 정상 웨이퍼 이미지는 다음과 같이 그리드 패턴과 가우시안 노이즈로 구성됩니다:
+Generated normal wafer images use a grid pattern with Gaussian noise:
 
-![합성 웨이퍼 이미지](docs/screenshots/screenshot-data-wafers.png)
+![Synthetic wafer images](docs/screenshots/screenshot-data-wafers.png)
 
 ---
 
-### 4단계. Iceberg 테이블 및 StarRocks 카탈로그 초기화
+### Step 4. Initialize Iceberg table and StarRocks catalog
 
 ```bash
 python scripts/setup_infra.py
 ```
 
-수행 작업:
+This does:
 
-- MinIO `warehouse` 버킷 하위 경로 확인 (`heatmaps/`, `weights/`)
-- Iceberg `default.inspection_results` 테이블 생성 (없으면 신규 생성)
-- StarRocks `iceberg_catalog` External Catalog 등록 (클러스터 내부 DNS 사용)
+- Verifies MinIO `warehouse` bucket sub-paths (`heatmaps/`, `weights/`)
+- Creates the `default.inspection_results` Iceberg table (if it doesn't exist)
+- Registers `iceberg_catalog` as an External Catalog in StarRocks (using in-cluster DNS)
 
-> `warehouse` 버킷 자체는 2단계 `k8s-deploy.sh` 의 `minio-init` Job에서 이미 생성됩니다.
+> The `warehouse` bucket itself is already created in Step 2 by the `minio-init` Job.
 
 ---
 
-### 5단계. PaDiM 모델 학습
+### Step 5. Train the PaDiM model
 
 ```bash
 python scripts/train.py
 ```
 
-완료 시 체크포인트가 `weights/` 에 저장되고 MinIO `warehouse/weights/` 에 자동 업로드됩니다.
+When done, the checkpoint is saved to `weights/` and automatically uploaded to MinIO at `warehouse/weights/`.
 
 ```bash
-# MinIO 업로드 건너뛰기
+# Skip MinIO upload
 python scripts/train.py --no-upload
 ```
 
-> ResNet18 + n_features=100 기준, 200장 학습 시 M2 Mac CPU 약 1~2분 소요.
+> With ResNet18 + n_features=100, training on 200 images takes about 1–2 minutes on an M2 Mac (CPU).
 
 ---
 
-### 6단계. FastAPI 추론 서버 시작
+### Step 6. Start the FastAPI inference server
 
 ```bash
 .venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8000
@@ -244,78 +244,78 @@ Swagger UI: http://localhost:8000/docs
 
 ---
 
-### 7단계. Web UI 실행
+### Step 7. Run the Web UI
 
 ```bash
 cd frontend
-npm install   # 최초 1회
+npm install   # only needed the first time
 npm run dev
 ```
 
-브라우저에서 **http://localhost:5173** 을 열면 Web UI 가 표시됩니다.
+Open **http://localhost:5173** in your browser to see the Web UI.
 
-> FastAPI 서버(6단계)가 먼저 실행 중이어야 합니다.
-
----
-
-## Web UI 화면 구성
-
-| 경로 | 화면 | 주요 기능 |
-|------|------|-----------|
-| `/` | 대시보드 | 서버·모델·MinIO·StarRocks 상태 배지, 모델 메타정보, 오늘 통계 카드 (30초 자동 갱신) |
-| `/inspect` | 검사 | 드래그&드롭 이미지 업로드 → 이상 점수 게이지 + 결함/정상 판정 배지 |
-| `/history` | 이력 | 최근 검사 이력 테이블 (조회 건수 20/50/100/200 선택 가능) |
-| `/stats` | 통계 | 일별 검사 건수 막대 차트 + 평균 이상 점수 꺾은선 차트 + 수치 테이블 |
-
-### Web UI 기술 스택
-
-| 항목 | 기술 |
-|------|------|
-| 프레임워크 | React 18 + Vite + TypeScript |
-| 스타일 | Tailwind CSS |
-| 차트 | Recharts |
-| 라우팅 | React Router v6 |
-| API 연동 | Vite proxy `/api/*` → `http://localhost:8000/*` |
+> The FastAPI server (Step 6) must be running first.
 
 ---
 
-## 스크린샷
+## Web UI Pages
 
-### 대시보드 — 서버 상태 · 모델 정보 · 오늘의 검사 통계
+| Path | Page | Features |
+|------|------|----------|
+| `/` | Dashboard | Server / model / MinIO / StarRocks status badges, model metadata, today's stats (auto-refreshes every 30s) |
+| `/inspect` | Inspect | Drag & drop image upload → anomaly score gauge + defect/normal badge |
+| `/history` | History | Recent inspection records table (choose 20/50/100/200 rows) |
+| `/stats` | Stats | Daily inspection count bar chart + average anomaly score line chart + data table |
 
-![대시보드](docs/screenshots/screenshot-dashboard.png)
+### Web UI tech stack
 
-> API 서버, 모델 로드 여부, MinIO / StarRocks 연결 상태를 한눈에 확인하고 오늘의 검사 건수 · 결함 건수 · 평균 이상 점수를 표시합니다. 30초마다 자동 갱신됩니다.
-
----
-
-### 검사 — 이미지 업로드 및 결함 추론
-
-![이미지 검사](docs/screenshots/screenshot-inspect.png)
-
-> PNG / JPEG / BMP 이미지를 드래그&드롭하면 즉시 PaDiM 모델로 추론하여 이상 점수(0~1) 게이지와 결함/정상 판정 배지를 출력합니다. 히트맵은 MinIO에 자동 저장됩니다.
-
----
-
-### 이력 — 검사 기록 테이블
-
-![검사 이력](docs/screenshots/screenshot-history.png)
-
-> 최근 검사 이력을 파일명 · 이상 점수 · 결함 여부 · 검사 시각 · 모델 버전 컬럼으로 표시합니다. 조회 건수를 20 / 50 / 100 / 200 건으로 선택할 수 있습니다.
+| Item | Technology |
+|------|------------|
+| Framework | React 18 + Vite + TypeScript |
+| Styling | Tailwind CSS |
+| Charts | Recharts |
+| Routing | React Router v6 |
+| API | Vite proxy `/api/*` → `http://localhost:8000/*` |
 
 ---
 
-### 통계 — 일별 검사 건수 · 이상 점수 차트
+## Screenshots
 
-![일별 통계](docs/screenshots/screenshot-stats.png)
+### Dashboard — Server status · Model info · Today's stats
 
-> Recharts 막대 차트(총 검사 vs 결함 건수)와 꺾은선 차트(평균 이상 점수 추이)를 함께 표시합니다. 하단 테이블에서 날짜별 세부 수치를 확인할 수 있습니다.
+![Dashboard](docs/screenshots/screenshot-dashboard.png)
+
+> See the API server status, model load state, and MinIO / StarRocks connectivity at a glance. Today's inspection count, defect count, and average anomaly score are shown. Auto-refreshes every 30 seconds.
 
 ---
 
-## API 엔드포인트
+### Inspect — Upload an image and run inference
 
-### `GET /health` — 상태 확인
+![Inspect](docs/screenshots/screenshot-inspect.png)
+
+> Drag & drop a PNG / JPEG / BMP image to run it through the PaDiM model instantly. The result shows an anomaly score gauge (0–1) and a defect/normal badge. The heatmap is saved to MinIO automatically.
+
+---
+
+### History — Inspection record table
+
+![History](docs/screenshots/screenshot-history.png)
+
+> Shows recent inspection records with columns for filename, anomaly score, defect status, timestamp, and model version. Row count can be set to 20 / 50 / 100 / 200.
+
+---
+
+### Stats — Daily inspection count & anomaly score chart
+
+![Stats](docs/screenshots/screenshot-stats.png)
+
+> Shows a Recharts bar chart (total vs. defect count) and a line chart (average anomaly score over time). A detailed table with per-day numbers is shown below.
+
+---
+
+## API Endpoints
+
+### `GET /health` — Health check
 
 ```bash
 curl http://localhost:8000/health
@@ -333,7 +333,7 @@ curl http://localhost:8000/health
 
 ---
 
-### `POST /train` — API를 통한 모델 학습
+### `POST /train` — Train the model via API
 
 ```bash
 curl -X POST http://localhost:8000/train \
@@ -347,13 +347,13 @@ curl -X POST http://localhost:8000/train \
   "checkpoint_path": "weights/semiconductor/.../best.ckpt",
   "minio_uri": "s3://warehouse/weights/best.ckpt",
   "duration_seconds": 45.2,
-  "message": "학습 완료. 모델이 메모리에 로드되었습니다."
+  "message": "Training complete. Model loaded into memory."
 }
 ```
 
 ---
 
-### `POST /predict` — 이상 탐지 추론
+### `POST /predict` — Run anomaly detection
 
 ```bash
 curl -X POST http://localhost:8000/predict \
@@ -375,7 +375,7 @@ curl -X POST http://localhost:8000/predict \
 
 ---
 
-### `GET /model` — 로드된 모델 정보
+### `GET /model` — Get loaded model info
 
 ```bash
 curl http://localhost:8000/model
@@ -383,7 +383,7 @@ curl http://localhost:8000/model
 
 ---
 
-### `GET /history?n=20` — 최근 검사 이력
+### `GET /history?n=20` — Get recent inspection history
 
 ```bash
 curl "http://localhost:8000/history?n=20"
@@ -391,7 +391,7 @@ curl "http://localhost:8000/history?n=20"
 
 ---
 
-### `GET /stats` — 일별 이상 탐지 통계
+### `GET /stats` — Get daily anomaly detection stats
 
 ```bash
 curl http://localhost:8000/stats
@@ -399,26 +399,26 @@ curl http://localhost:8000/stats
 
 ---
 
-## StarRocks SQL 분석
+## StarRocks SQL Analytics
 
-MySQL 클라이언트로 직접 쿼리할 수 있습니다:
+Connect directly with a MySQL client:
 
 ```bash
 mysql -h 127.0.0.1 -P 9030 -u root
 ```
 
 ```sql
--- 최근 검사 결과 50건
+-- Last 50 inspection results
 SELECT * FROM iceberg_catalog.default.inspection_results
 ORDER BY timestamp DESC LIMIT 50;
 
--- 오늘 이상 탐지 건수
+-- Today's anomaly count
 SELECT COUNT(*) AS anomaly_count
 FROM iceberg_catalog.default.inspection_results
 WHERE is_anomaly = true
   AND DATE(timestamp) = CURDATE();
 
--- 일별 검사 건수 및 이상률
+-- Daily inspection count and anomaly rate
 SELECT
   DATE(timestamp) AS dt,
   COUNT(*)        AS total,
@@ -428,7 +428,7 @@ FROM iceberg_catalog.default.inspection_results
 GROUP BY dt
 ORDER BY dt DESC;
 
--- 평균 이상 점수 추이
+-- Average anomaly score trend
 SELECT DATE(timestamp) AS dt, ROUND(AVG(anomaly_score), 4) AS avg_score
 FROM iceberg_catalog.default.inspection_results
 GROUP BY dt ORDER BY dt DESC;
@@ -436,193 +436,193 @@ GROUP BY dt ORDER BY dt DESC;
 
 ---
 
-## Kubernetes 매니페스트 상세
+## Kubernetes Manifests
 
-| 파일 | 리소스 | 설명 |
-|------|--------|------|
+| File | Resource | Description |
+|------|----------|-------------|
 | `k8s/00-namespace.yaml` | Namespace | `semiconductor-poc` |
 | `k8s/01-minio.yaml` | PVC + Deployment + Service | MinIO 10 Gi, LoadBalancer 9000/9001 |
 | `k8s/02-iceberg-rest.yaml` | Deployment + Service | Iceberg REST, LoadBalancer 8181, `PATH_STYLE_ACCESS=true` |
-| `k8s/03-starrocks-fe.yaml` | Deployment + ClusterIP + LoadBalancer | FE, MySQL 포트 9030 |
-| `k8s/04-starrocks-be.yaml` | Deployment + ClusterIP + LoadBalancer | BE, initContainer(FE 대기), HTTP 8040 |
-| `k8s/05-minio-init-job.yaml` | Job | `mc alias set` + `mc anonymous set`, 완료 60초 후 자동 삭제 |
+| `k8s/03-starrocks-fe.yaml` | Deployment + ClusterIP + LoadBalancer | FE, MySQL port 9030 |
+| `k8s/04-starrocks-be.yaml` | Deployment + ClusterIP + LoadBalancer | BE, initContainer waits for FE, HTTP 8040 |
+| `k8s/05-minio-init-job.yaml` | Job | `mc alias set` + `mc anonymous set`, auto-deleted 60s after completion |
 
-**클러스터 내부 서비스 DNS (파드 간 통신):**
+**In-cluster service DNS (pod-to-pod communication):**
 
-| 서비스 | 내부 주소 |
-|--------|-----------|
+| Service | Internal Address |
+|---------|-----------------|
 | MinIO | `http://minio:9000` |
 | Iceberg REST | `http://iceberg-rest:8181` |
 | StarRocks FE | `starrocks-fe:9030` |
 | StarRocks BE | `starrocks-be:9050` (heartbeat) |
 
-**배포 관리 명령어:**
+**Deployment management commands:**
 
 ```bash
-# 전체 배포
+# Deploy everything
 ./scripts/k8s-deploy.sh
 
-# 파드 / 서비스 / 잡 상태 확인
+# Check pod / service / job status
 ./scripts/k8s-deploy.sh --status
 
-# 전체 삭제 (PVC 데이터 포함)
+# Delete everything (including PVC data)
 ./scripts/k8s-deploy.sh --delete
 
-# 특정 Deployment 재시작
+# Restart a specific Deployment
 kubectl rollout restart deployment/starrocks-fe -n semiconductor-poc
 kubectl rollout restart deployment/minio         -n semiconductor-poc
 
-# 실시간 로그 확인
+# Tail live logs
 kubectl logs -f deployment/starrocks-fe  -n semiconductor-poc
 kubectl logs -f deployment/starrocks-be  -n semiconductor-poc
 kubectl logs -f deployment/minio         -n semiconductor-poc
 kubectl logs -f deployment/iceberg-rest  -n semiconductor-poc
 
-# minio-init Job 로그 (실패 시 디버깅)
+# minio-init Job logs (for debugging failures)
 kubectl logs job/minio-init -n semiconductor-poc
 ```
 
 ---
 
-## 프로젝트 구조
+## Project Structure
 
 ```
 semiconductor-detect-inspection/
 ├── frontend/                          # React Web UI (Vite + TypeScript)
 │   ├── src/
-│   │   ├── api/client.ts              # FastAPI fetch 래퍼 + TypeScript 타입
+│   │   ├── api/client.ts              # FastAPI fetch wrapper + TypeScript types
 │   │   ├── components/
-│   │   │   ├── Navbar.tsx             # 상단 내비게이션 바
-│   │   │   ├── StatusBadge.tsx        # 상태 배지 (ok / anomaly / normal 등)
-│   │   │   └── ScoreBar.tsx           # 이상 점수 게이지 바
+│   │   │   ├── Navbar.tsx             # Top navigation bar
+│   │   │   ├── StatusBadge.tsx        # Status badge (ok / anomaly / normal, etc.)
+│   │   │   └── ScoreBar.tsx           # Anomaly score gauge bar
 │   │   ├── pages/
-│   │   │   ├── DashboardPage.tsx      # 대시보드 (상태 카드 + 통계 요약)
-│   │   │   ├── InspectPage.tsx        # 검사 화면 (드래그&드롭 + 결과)
-│   │   │   ├── HistoryPage.tsx        # 이력 테이블
-│   │   │   └── StatsPage.tsx          # 일별 통계 차트
-│   │   ├── App.tsx                    # Router + 레이아웃
-│   │   └── main.tsx                   # 진입점
-│   ├── vite.config.ts                 # Vite 설정 + API proxy
+│   │   │   ├── DashboardPage.tsx      # Dashboard (status cards + stats summary)
+│   │   │   ├── InspectPage.tsx        # Inspect page (drag & drop + results)
+│   │   │   ├── HistoryPage.tsx        # History table
+│   │   │   └── StatsPage.tsx          # Daily stats chart
+│   │   ├── App.tsx                    # Router + layout
+│   │   └── main.tsx                   # Entry point
+│   ├── vite.config.ts                 # Vite config + API proxy
 │   ├── tailwind.config.js
 │   └── package.json
 ├── k8s/
-│   ├── 00-namespace.yaml              # semiconductor-poc 네임스페이스
+│   ├── 00-namespace.yaml              # semiconductor-poc namespace
 │   ├── 01-minio.yaml                  # MinIO PVC + Deployment + Service
-│   ├── 02-iceberg-rest.yaml           # Iceberg REST 카탈로그 (path-style S3)
+│   ├── 02-iceberg-rest.yaml           # Iceberg REST catalog (path-style S3)
 │   ├── 03-starrocks-fe.yaml           # StarRocks FE
 │   ├── 04-starrocks-be.yaml           # StarRocks BE (initContainer)
-│   └── 05-minio-init-job.yaml         # warehouse 버킷 초기화 Job
+│   └── 05-minio-init-job.yaml         # warehouse bucket initialization Job
 ├── data/
-│   ├── train/good/                    # 정상 학습 이미지 (자동 생성)
-│   ├── test/good/                     # 정상 테스트 이미지 (자동 생성)
-│   ├── test/defect/                   # 결함 테스트 이미지 (자동 생성)
-│   └── results/                       # 추론 결과 JSON + 히트맵 로컬 사본
+│   ├── train/good/                    # Normal training images (auto-generated)
+│   ├── test/good/                     # Normal test images (auto-generated)
+│   ├── test/defect/                   # Defect test images (auto-generated)
+│   └── results/                       # Inference result JSON + local heatmap copies
 ├── src/
-│   ├── synthetic_defects.py           # 결함 생성 모듈 (scratch / spot / contamination)
-│   ├── utils.py                       # 히트맵 생성, 설정 로드 등 유틸리티
-│   ├── storage.py                     # MinIO SDK 클라이언트
-│   ├── iceberg_writer.py              # PyIceberg 결과 기록
-│   └── database.py                    # StarRocks pymysql 클라이언트
+│   ├── synthetic_defects.py           # Defect generation module (scratch / spot / contamination)
+│   ├── utils.py                       # Heatmap generation, config loading, utilities
+│   ├── storage.py                     # MinIO SDK client
+│   ├── iceberg_writer.py              # PyIceberg result writer
+│   └── database.py                    # StarRocks pymysql client
 ├── api/
-│   ├── main.py                        # FastAPI 앱 + lifespan
-│   ├── state.py                       # 전역 상태 (모델, 클라이언트)
-│   ├── schemas.py                     # Pydantic 요청/응답 스키마
+│   ├── main.py                        # FastAPI app + lifespan
+│   ├── state.py                       # Global state (model, clients)
+│   ├── schemas.py                     # Pydantic request/response schemas
 │   └── routes/
 │       ├── predict.py                 # /health, /predict, /history, /stats
 │       └── train.py                   # /train, /model
 ├── scripts/
-│   ├── generate_normal_images.py      # 정상 웨이퍼 이미지 자동 생성
-│   ├── generate_defects.py            # 결함 이미지 자동 생성
-│   ├── train.py                       # 단독 PaDiM 학습 스크립트
-│   ├── setup_infra.py                 # Iceberg 테이블 + StarRocks 카탈로그 초기화
-│   └── k8s-deploy.sh                  # Kubernetes 인프라 배포 쉘 스크립트
+│   ├── generate_normal_images.py      # Auto-generate normal wafer images
+│   ├── generate_defects.py            # Auto-generate defect images
+│   ├── train.py                       # Standalone PaDiM training script
+│   ├── setup_infra.py                 # Initialize Iceberg table + StarRocks catalog
+│   └── k8s-deploy.sh                  # Kubernetes infrastructure deployment script
 ├── configs/
-│   └── config.yaml                    # 전체 설정 (모델, 경로, 외부 서비스 주소)
-├── weights/                           # 체크포인트 로컬 저장 디렉터리
-└── requirements.txt                   # Python 3.11 호환 의존성 (버전 범위 고정)
+│   └── config.yaml                    # Global config (model, paths, external service addresses)
+├── weights/                           # Local checkpoint storage directory
+└── requirements.txt                   # Python 3.11 compatible dependencies (version ranges pinned)
 ```
 
 ---
 
-## 설정 파일 (`configs/config.yaml`)
+## Configuration (`configs/config.yaml`)
 
-주요 설정 항목:
+Key settings:
 
-| 섹션 | 항목 | 기본값 | 설명 |
-|------|------|--------|------|
-| `model` | `backbone` | `resnet18` | 특징 추출 백본 |
-| `model` | `accelerator` | `cpu` | `cpu` 또는 `mps` (M2 실험적 지원) |
-| `model` | `n_features` | `100` | PaDiM 랜덤 차원 수 (클수록 정밀, 느림) |
-| `inference` | `threshold` | `0.5` | 이상 판정 임계값 |
-| `minio` | `endpoint` | `localhost:9000` | MinIO 외부 접근 주소 |
-| `iceberg` | `rest_uri` | `http://localhost:8181` | Iceberg REST 카탈로그 외부 주소 |
-| `starrocks` | `host` | `localhost` | StarRocks MySQL 호스트 |
-| `starrocks` | `port` | `9030` | StarRocks MySQL 포트 |
-| `k8s_internal` | `minio_endpoint` | `http://minio...svc...` | StarRocks→MinIO 클러스터 내부 DNS |
-| `k8s_internal` | `iceberg_rest_uri` | `http://iceberg-rest...svc...` | StarRocks→Iceberg 클러스터 내부 DNS |
-
----
-
-## 합성 결함 종류
-
-| 결함 타입 | 설명 |
-|-----------|------|
-| `scratch` | 랜덤 방향 직선 스크래치 1~3개 |
-| `spot` | 밝거나 어두운 원형 점 결함 1~4개 |
-| `contamination` | 불규칙 다각형 오염 영역 + 노이즈 텍스처 오버레이 |
+| Section | Key | Default | Description |
+|---------|-----|---------|-------------|
+| `model` | `backbone` | `resnet18` | Feature extraction backbone |
+| `model` | `accelerator` | `cpu` | `cpu` or `mps` (M2 experimental) |
+| `model` | `n_features` | `100` | PaDiM random feature dimensions (higher = more accurate but slower) |
+| `inference` | `threshold` | `0.5` | Anomaly detection threshold |
+| `minio` | `endpoint` | `localhost:9000` | MinIO external access address |
+| `iceberg` | `rest_uri` | `http://localhost:8181` | Iceberg REST catalog external address |
+| `starrocks` | `host` | `localhost` | StarRocks MySQL host |
+| `starrocks` | `port` | `9030` | StarRocks MySQL port |
+| `k8s_internal` | `minio_endpoint` | `http://minio...svc...` | StarRocks → MinIO in-cluster DNS |
+| `k8s_internal` | `iceberg_rest_uri` | `http://iceberg-rest...svc...` | StarRocks → Iceberg in-cluster DNS |
 
 ---
 
-## Apple Silicon (M2) + Kubernetes 참고 사항
+## Synthetic Defect Types
 
-- MinIO, Iceberg REST, StarRocks 모두 **multi-arch(amd64/arm64) 이미지** 제공.
-- PaDiM 학습은 `accelerator: cpu`로 설정 (anomalib MPS + 메모리 뱅크 연산 불안정).
-- Docker Desktop LoadBalancer는 포트 포워딩 없이 `localhost` 로 자동 노출.
-- StarRocks BE initContainer가 FE 포트(9030) 준비를 확인 후 자동 기동 — 수동 개입 불필요.
-- Kubernetes v1.34.x 확인 완료 (`v1`, `apps/v1`, `batch/v1` 모두 stable API 사용).
+| Defect Type | Description |
+|-------------|-------------|
+| `scratch` | 1–3 linear scratches in random directions |
+| `spot` | 1–4 circular spots (bright or dark) |
+| `contamination` | Irregular polygon contamination area with noisy texture overlay |
 
 ---
 
-## 트러블슈팅
+## Apple Silicon (M2) + Kubernetes Notes
 
-### minio-init Job 실패
+- MinIO, Iceberg REST, and StarRocks all use **multi-arch (amd64/arm64) images**.
+- PaDiM training is set to `accelerator: cpu` (anomalib MPS + memory bank operations are unstable).
+- Docker Desktop LoadBalancer exposes services on `localhost` automatically — no manual port forwarding needed.
+- The StarRocks BE initContainer waits for FE port 9030 before starting — no manual intervention required.
+- Tested on Kubernetes v1.34.x (all resources use stable APIs: `v1`, `apps/v1`, `batch/v1`).
+
+---
+
+## Troubleshooting
+
+### minio-init Job fails
 
 ```bash
 kubectl logs job/minio-init -n semiconductor-poc
 ```
 
-MinIO가 아직 준비되지 않은 경우 Job을 재실행합니다:
+If MinIO isn't ready yet, re-run the Job:
 
 ```bash
 kubectl delete job minio-init -n semiconductor-poc
 kubectl apply -f k8s/05-minio-init-job.yaml
 ```
 
-### StarRocks BE가 Ready 되지 않음
+### StarRocks BE is not reaching Ready
 
 ```bash
 kubectl describe pod -l app=starrocks-be -n semiconductor-poc
 kubectl logs -l app=starrocks-be -n semiconductor-poc -c wait-for-fe
 ```
 
-FE가 완전히 기동하기까지 최대 3분 소요. BE initContainer 로그에서 "FE 준비 완료" 메시지를 확인합니다.
+FE can take up to 3 minutes to fully start. Check the BE initContainer logs for a "FE ready" message.
 
-### FastAPI 모델 미로드
+### FastAPI model not loaded
 
 ```
-[AppState] 저장된 체크포인트 없음. POST /train 으로 학습 후 사용하세요.
+[AppState] No checkpoint found. Please run POST /train first.
 ```
 
-`python scripts/train.py` 또는 `POST /train` 으로 학습을 먼저 완료한 뒤 서버를 재시작합니다.
+Run `python scripts/train.py` or call `POST /train` to train the model first, then restart the server.
 
-### PyIceberg S3 접근 오류
+### PyIceberg S3 access error
 
-`configs/config.yaml` 의 MinIO 자격증명(`access_key`, `secret_key`)과 K8s MinIO 환경변수(`MINIO_ROOT_USER=admin`, `MINIO_ROOT_PASSWORD=password`)가 일치하는지 확인합니다.
+Check that the MinIO credentials (`access_key`, `secret_key`) in `configs/config.yaml` match the K8s MinIO environment variables (`MINIO_ROOT_USER=admin`, `MINIO_ROOT_PASSWORD=password`).
 
-### Web UI 가 API에 연결되지 않음
+### Web UI can't connect to API
 
-Vite dev server(`npm run dev`)는 `/api/*` 요청을 `http://localhost:8000` 으로 프록시합니다.
-FastAPI 서버가 포트 8000에서 실행 중인지 먼저 확인하세요.
+The Vite dev server (`npm run dev`) proxies `/api/*` requests to `http://localhost:8000`.
+Make sure the FastAPI server is running on port 8000 first.
 
 ```bash
 curl http://localhost:8000/health
@@ -630,10 +630,10 @@ curl http://localhost:8000/health
 
 ---
 
-## 제외 범위
+## Out of Scope
 
-- 클라우드 배포
-- 실시간 장비 연동
-- MES / FDC 연동
-- 다중 사용자 환경
-- GPU 클러스터 학습
+- Cloud deployment
+- Real-time equipment integration
+- MES / FDC integration
+- Multi-user environments
+- GPU cluster training
