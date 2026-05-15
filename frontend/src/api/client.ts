@@ -83,7 +83,7 @@ export interface StatsResponse {
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`);
-  if (!res.ok) throw new Error(`GET ${path} 실패: ${res.status}`);
+  if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
   return res.json() as Promise<T>;
 }
 
@@ -104,7 +104,7 @@ export async function postTrain(req: TrainRequest = {}): Promise<TrainResponse> 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),
   });
-  if (!res.ok) throw new Error(`POST /train 실패: ${res.status}`);
+  if (!res.ok) throw new Error(`POST /train failed: ${res.status}`);
   return res.json() as Promise<TrainResponse>;
 }
 
@@ -119,7 +119,7 @@ export async function postPredict(file: File): Promise<PredictResponse> {
     method: "POST",
     body: form,
   });
-  if (!res.ok) throw new Error(`POST /predict 실패: ${res.status}`);
+  if (!res.ok) throw new Error(`POST /predict failed: ${res.status}`);
   return res.json() as Promise<PredictResponse>;
 }
 
