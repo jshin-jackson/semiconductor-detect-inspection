@@ -1,160 +1,245 @@
 """
 CML Application launcher for Semiconductor Defect Inspection.
 
-CML PBJ Workbench Architecture:
-  - EngineInit.BrowserSvcs binds CDSW_APP_PORT (e.g. 8100) ~2 seconds
-    before the user script runs, as part of the Application routing setup.
-  - `fuser` is not available in CML runtime images.
-  - This launcher uses /proc/net/tcp (pure Python, no external tools)
-    to find and kill the CML infrastructure process holding the port,
-    then immediately starts uvicorn before the port can be re-acquired.
+Root cause (confirmed from Container Log):
+  EngineInit.BrowserSvcs (root process) binds CDSW_APP_PORT at
+  12:32:28, before our script runs at 12:32:30.  We cannot kill it
+  (uid=8536 cannot signal root processes).
 
-Security note (public CML environment):
-  - The app runs behind CML's authenticated reverse proxy.
-  - No credentials are stored here; all secrets come from project
-    environment variables (MINIO_SECRET_KEY, etc.).
+Strategy — try in order:
+  1. SO_REUSEPORT   : bind alongside the CML process if it used SO_REUSEPORT.
+                     uvicorn inherits the pre-bound socket via --fd so it
+                     never needs to call bind() itself.
+  2. Kill via /proc : on environments where the process IS killable.
+  3. Plain fallback : just try anyway; works if the port becomes free.
+
+All attempts are fully logged so the Container Log shows exactly what
+happened.
 """
 
 import os
 import signal
+import socket
 import subprocess
 import sys
 import time
 
 
 # ---------------------------------------------------------------------------
-# Port helpers (pure Python, no fuser/lsof required)
+# Diagnostics
 # ---------------------------------------------------------------------------
 
-def _find_port_inode(port: int) -> str | None:
-    """Return the socket inode (string) for the process LISTEN-ing on *port*."""
+def _diagnose_port(port: int) -> None:
+    """Log what process (if any) is currently holding *port*."""
     hex_port = f'{port:04X}'
     for proto_file in ('/proc/net/tcp', '/proc/net/tcp6'):
         try:
             with open(proto_file) as f:
-                for line in f.readlines()[1:]:   # skip header row
+                for line in f.readlines()[1:]:
                     cols = line.split()
                     if len(cols) < 10:
                         continue
-                    local_port = cols[1].split(':')[1]
-                    state      = cols[3]          # 0A = LISTEN
-                    if local_port.upper() == hex_port and state == '0A':
-                        return cols[9]            # inode number
+                    if cols[1].split(':')[1].upper() == hex_port and cols[3] == '0A':
+                        inode = cols[9]
+                        pid   = _pid_for_inode(inode)
+                        cmdline = _cmdline(pid) if pid else 'unknown'
+                        uid     = _uid(pid)     if pid else '?'
+                        print(f"[app] DIAG port {port}: inode={inode} "
+                              f"pid={pid} uid={uid} cmd={cmdline!r}")
+                        return
         except (FileNotFoundError, PermissionError):
             pass
-    return None
+    print(f"[app] DIAG port {port}: nothing listening (port is free)")
 
 
 def _pid_for_inode(inode: str) -> int | None:
-    """Walk /proc/<pid>/fd to find which PID owns *inode*."""
     try:
-        pids = [p for p in os.listdir('/proc') if p.isdigit()]
+        for pid in os.listdir('/proc'):
+            if not pid.isdigit():
+                continue
+            try:
+                for fd in os.listdir(f'/proc/{pid}/fd'):
+                    try:
+                        if f'socket:[{inode}]' in os.readlink(f'/proc/{pid}/fd/{fd}'):
+                            return int(pid)
+                    except (FileNotFoundError, PermissionError, OSError):
+                        pass
+            except (FileNotFoundError, PermissionError):
+                pass
     except PermissionError:
-        return None
-
-    for pid in pids:
-        try:
-            for fd in os.listdir(f'/proc/{pid}/fd'):
-                try:
-                    link = os.readlink(f'/proc/{pid}/fd/{fd}')
-                    if f'socket:[{inode}]' in link:
-                        return int(pid)
-                except (FileNotFoundError, PermissionError, OSError):
-                    pass
-        except (FileNotFoundError, PermissionError):
-            pass
+        pass
     return None
 
 
-def _port_in_use(port: int) -> bool:
-    """Return True if something is LISTEN-ing on *port*."""
-    return _find_port_inode(port) is not None
+def _cmdline(pid: int) -> str:
+    try:
+        with open(f'/proc/{pid}/cmdline', 'rb') as f:
+            return f.read().replace(b'\x00', b' ').decode(errors='replace').strip()
+    except Exception:
+        return 'unreadable'
 
 
-def _free_port(port: int) -> bool:
+def _uid(pid: int) -> str:
+    try:
+        with open(f'/proc/{pid}/status') as f:
+            for line in f:
+                if line.startswith('Uid:'):
+                    return line.split()[1]   # real UID
+    except Exception:
+        pass
+    return '?'
+
+
+# ---------------------------------------------------------------------------
+# Strategy 1: SO_REUSEPORT pre-bind  → pass socket fd to uvicorn
+# ---------------------------------------------------------------------------
+
+def _try_reuseport_bind(port: int) -> socket.socket | None:
     """
-    Kill the process holding *port* via /proc (no fuser needed).
-    Returns True if a process was found and signalled.
+    Try to create a SOCK_STREAM socket bound to *port* with SO_REUSEPORT.
+    If the existing holder also used SO_REUSEPORT the kernel allows two
+    listeners; uvicorn will inherit the fd and start serving immediately.
+    Returns the bound socket on success, None on failure.
     """
-    inode = _find_port_inode(port)
-    if inode is None:
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        s.bind(('0.0.0.0', port))
+        s.listen(128)
+        s.set_inheritable(True)
+        print(f"[app] SO_REUSEPORT bind on port {port} succeeded.")
+        return s
+    except OSError as e:
+        print(f"[app] SO_REUSEPORT bind failed: {e}")
+        try:
+            s.close()
+        except Exception:
+            pass
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Strategy 2: kill via /proc (only works if we own the process)
+# ---------------------------------------------------------------------------
+
+def _try_kill_port(port: int) -> bool:
+    hex_port = f'{port:04X}'
+    inode = None
+    for proto_file in ('/proc/net/tcp', '/proc/net/tcp6'):
+        try:
+            with open(proto_file) as f:
+                for line in f.readlines()[1:]:
+                    cols = line.split()
+                    if len(cols) < 10:
+                        continue
+                    if cols[1].split(':')[1].upper() == hex_port and cols[3] == '0A':
+                        inode = cols[9]
+                        break
+        except (FileNotFoundError, PermissionError):
+            pass
+        if inode:
+            break
+
+    if not inode:
         return False
 
     pid = _pid_for_inode(inode)
     if pid is None:
-        print(f"[app] Found socket on port {port} (inode {inode}) but could not identify PID.")
+        print(f"[app] kill: inode {inode} found but PID lookup failed (likely root process).")
         return False
+
+    uid = _uid(pid)
+    my_uid = str(os.getuid())
+    if uid != my_uid and uid != '0':
+        # might still work if same user; try anyway
+        pass
 
     try:
         os.kill(pid, signal.SIGTERM)
-        print(f"[app] Sent SIGTERM to PID {pid} holding port {port}.")
-        # Give it a moment to release the socket
+        print(f"[app] kill: sent SIGTERM to PID {pid} (uid={uid}).")
         deadline = time.time() + 3.0
-        while _port_in_use(port) and time.time() < deadline:
+        while time.time() < deadline:
             time.sleep(0.2)
-        if not _port_in_use(port):
-            print(f"[app] Port {port} is now free.")
-            return True
-        # If SIGTERM wasn't enough, escalate to SIGKILL
-        try:
-            os.kill(pid, signal.SIGKILL)
-            print(f"[app] Sent SIGKILL to PID {pid}.")
-            time.sleep(0.5)
-        except ProcessLookupError:
-            pass  # already gone
-        return not _port_in_use(port)
+            inode2 = None
+            for proto_file in ('/proc/net/tcp', '/proc/net/tcp6'):
+                try:
+                    with open(proto_file) as f:
+                        for line in f.readlines()[1:]:
+                            cols = line.split()
+                            if len(cols) >= 10 and cols[1].split(':')[1].upper() == hex_port and cols[3] == '0A':
+                                inode2 = cols[9]
+                except Exception:
+                    pass
+            if not inode2:
+                print(f"[app] kill: port {port} is now free.")
+                return True
+        # escalate
+        os.kill(pid, signal.SIGKILL)
+        time.sleep(0.5)
+        return True
     except (ProcessLookupError, PermissionError) as exc:
-        print(f"[app] Could not kill PID {pid}: {exc}")
+        print(f"[app] kill: cannot signal PID {pid}: {exc}")
         return False
+
+
+# ---------------------------------------------------------------------------
+# Launch uvicorn
+# ---------------------------------------------------------------------------
+
+def _run_uvicorn(port: int, sock: socket.socket | None = None) -> int:
+    """Start uvicorn. If *sock* is given, pass it via --fd (no bind needed)."""
+    if sock is not None:
+        fd = sock.fileno()
+        cmd = [sys.executable, '-m', 'uvicorn', 'api.main:app', '--fd', str(fd)]
+        result = subprocess.run(cmd, pass_fds=(fd,))
+    else:
+        cmd = [sys.executable, '-m', 'uvicorn', 'api.main:app',
+               '--host', '0.0.0.0', '--port', str(port)]
+        result = subprocess.run(cmd)
+    return result.returncode
 
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
-port = int(os.environ.get("CDSW_APP_PORT", "8000"))
-
+port = int(os.environ.get('CDSW_APP_PORT', '8000'))
 print(f"[app] Starting Semiconductor Defect Inspection on port {port} ...")
+print(f"[app] My uid = {os.getuid()}, pid = {os.getpid()}")
 
-# CML's EngineInit.BrowserSvcs binds CDSW_APP_PORT a few seconds before the
-# user script runs. Free it before uvicorn tries to bind.
-if _port_in_use(port):
-    print(f"[app] Port {port} is occupied — attempting to free it ...")
-    freed = _free_port(port)
-    if not freed:
-        print(f"[app] WARNING: could not free port {port}; uvicorn may fail to bind.")
-else:
-    print(f"[app] Port {port} is free.")
+# Step 0: diagnose what's on the port right now
+_diagnose_port(port)
 
-# Run uvicorn in a subprocess (avoids asyncio nested-loop error in Jupyter kernel).
-# Restart automatically on unexpected exit — up to MAX_RESTARTS times.
-MAX_RESTARTS = 5
-restart_count = 0
+# Step 1: try SO_REUSEPORT pre-bind → uvicorn inherits the socket
+pre_sock = _try_reuseport_bind(port)
+if pre_sock is not None:
+    print("[app] Strategy 1 (SO_REUSEPORT): launching uvicorn with --fd ...")
+    rc = _run_uvicorn(port, sock=pre_sock)
+    print(f"[app] uvicorn exited (code {rc}).")
+    sys.exit(0)
 
-while True:
-    result = subprocess.run(
-        [
-            sys.executable, "-m", "uvicorn", "api.main:app",
-            "--host", "0.0.0.0",
-            "--port", str(port),
-        ]
-    )
+# Step 2: try killing the holder
+print("[app] Strategy 2 (kill): attempting to free port ...")
+freed = _try_kill_port(port)
+if freed:
+    time.sleep(0.3)
+    _diagnose_port(port)
+    print("[app] Strategy 2: launching uvicorn ...")
+    rc = _run_uvicorn(port)
+    print(f"[app] uvicorn exited (code {rc}).")
+    sys.exit(0)
 
-    if result.returncode == 0:
+# Step 3: plain attempt (maybe the port freed on its own)
+print("[app] Strategy 3 (plain): launching uvicorn directly ...")
+MAX = 3
+for attempt in range(1, MAX + 1):
+    rc = _run_uvicorn(port)
+    if rc == 0:
         print("[app] Server stopped cleanly.")
         break
+    print(f"[app] Attempt {attempt}/{MAX} failed (code {rc}).")
+    if attempt < MAX:
+        time.sleep(5)
 
-    restart_count += 1
-    if restart_count >= MAX_RESTARTS:
-        print(f"[app] Server failed {MAX_RESTARTS} times — giving up.")
-        break
-
-    wait = min(5 * restart_count, 20)
-    print(f"[app] Server exited (code {result.returncode}). "
-          f"Restart {restart_count}/{MAX_RESTARTS} in {wait}s ...")
-    time.sleep(wait)
-
-    # Port may have been re-acquired by CML after we freed it; release again.
-    if _port_in_use(port):
-        print(f"[app] Port {port} re-occupied — freeing again ...")
-        _free_port(port)
+print("[app] All strategies exhausted. Check Container Log for diagnostics.")
