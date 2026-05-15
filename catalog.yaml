@@ -30,6 +30,6 @@ entries:
    - Apache Iceberg
    - MinIO
    - StarRocks
-   git_url: "https://github.com/jshin-jackson/semiconductor-detect-inspection/tree/cloudera-amp-release"
+   git_url: "https://github.com/jshin-jackson/semiconductor-detect-inspection"
    is_prototype: true
    is_new: true
