@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import uuid
 from typing import Annotated
@@ -19,7 +20,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from api.schemas import HealthResponse, HistoryResponse, InspectionRecord, PredictResponse, StatsResponse
 from api.state import AppState, get_state
 
-# 이 라우터를 api/main.py 에서 app.include_router() 로 등록합니다.
+logger = logging.getLogger("api.predict")
 router = APIRouter()
 
 
@@ -148,7 +149,7 @@ async def predict(
         with open(local_heatmap, "wb") as f:
             f.write(heatmap_bytes)
     except Exception:
-        pass  # 히트맵 생성/저장 실패해도 추론 결과는 정상 반환
+        logger.exception("POST /predict: heatmap generation/upload failed (non-fatal)")
 
     # ── 결과 JSON 로컬 저장 ────────────────────────────────────────────────────
     result_json_path: str | None = None
@@ -172,7 +173,7 @@ async def predict(
             f"{inference_id}_result.json",
         )
     except Exception:
-        pass  # JSON 저장 실패해도 계속
+        logger.exception("POST /predict: result JSON save failed (non-fatal)")
 
     # ── Iceberg 테이블에 검사 결과 기록 ─────────────────────────────────────
     # 실패해도 추론 결과 반환에는 영향 없지만, 경고 로그로 추적 가능하게 합니다.
@@ -224,14 +225,14 @@ async def history(
     이후 조회는 StarRocks 캐시 덕분에 빠르게 응답합니다.
     """
     if not state.starrocks:
-        raise HTTPException(status_code=503, detail="StarRocks에 연결되어 있지 않습니다.")
+        logger.warning("GET /history: StarRocks not connected — returning empty result.")
+        return HistoryResponse(total=0, records=[])
     try:
-        # StarRocks SQL 쿼리 실행 — 딕셔너리 리스트로 반환
         rows = state.starrocks.query_recent(n=n)
-        # 각 딕셔너리를 InspectionRecord Pydantic 모델로 변환
         records = [InspectionRecord(**{k: v for k, v in row.items()}) for row in rows]
         return HistoryResponse(total=len(records), records=records)
     except Exception as e:
+        logger.exception("GET /history: query failed")
         raise HTTPException(status_code=500, detail=f"조회 실패: {e}") from e
 
 
@@ -251,10 +252,11 @@ async def stats(state: Annotated[AppState, Depends(get_state)]) -> StatsResponse
       - avg_score       : 평균 이상 점수
     """
     if not state.starrocks:
-        raise HTTPException(status_code=503, detail="StarRocks에 연결되어 있지 않습니다.")
+        logger.warning("GET /stats: StarRocks not connected — returning empty result.")
+        return StatsResponse(rows=[])
     try:
         rows = state.starrocks.query_anomaly_stats()
-        # 각 row 를 dict 로 변환해 반환 (날짜, 건수, 평균 점수 등)
         return StatsResponse(rows=[dict(r) for r in rows])
     except Exception as e:
+        logger.exception("GET /stats: query failed")
         raise HTTPException(status_code=500, detail=f"통계 조회 실패: {e}") from e

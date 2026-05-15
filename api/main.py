@@ -18,6 +18,8 @@ frontend from frontend/dist/ as static files.
 
 from __future__ import annotations
 
+import logging
+import logging.config
 import os
 from contextlib import asynccontextmanager
 
@@ -30,6 +32,37 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_PATH = os.path.join(ROOT, "configs", "config.yaml")
 FRONTEND_DIST = os.path.join(ROOT, "frontend", "dist")
 
+# ---------------------------------------------------------------------------
+# Logging configuration
+# Structured format: timestamp | level | logger | message
+# Applied once at module import so all loggers (api.*, uvicorn.*) share it.
+# ---------------------------------------------------------------------------
+logging.config.dictConfig({
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {
+            "format": "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        }
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "standard",
+            "stream": "ext://sys.stdout",
+        }
+    },
+    "root": {"level": "INFO", "handlers": ["console"]},
+    "loggers": {
+        "api":       {"level": "DEBUG", "propagate": True},
+        "uvicorn":   {"level": "INFO",  "propagate": True},
+        "uvicorn.access": {"level": "INFO", "propagate": True},
+    },
+})
+
+logger = logging.getLogger("api.main")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -39,12 +72,24 @@ async def lifespan(app: FastAPI):
     - 서버 시작 시: config.yaml 을 읽고 모델·외부 서비스를 초기화합니다.
     - 서버 종료 시: (필요 시 정리 코드 추가 가능)
     """
-    from api.state import get_state  # 순환 임포트 방지를 위해 함수 안에서 import
+    from api.state import get_state
 
-    state = get_state()          # 전역 싱글턴 AppState 가져오기
-    state.initialize(CONFIG_PATH)  # 모델, MinIO, Iceberg, StarRocks 초기화
+    logger.info("=== Semiconductor Defect Inspection API starting ===")
+    state = get_state()
+    state.initialize(CONFIG_PATH)
+
+    # Startup summary — one place to see what's available
+    logger.info("--- Startup summary ---")
+    logger.info("  Model loaded   : %s  (version=%s)", state.model_loaded, state.model_version)
+    logger.info("  MinIO          : %s", "connected" if state.storage       else "NOT connected")
+    logger.info("  Iceberg        : %s", "connected" if state.iceberg_writer else "NOT connected")
+    logger.info("  StarRocks      : %s", "connected" if state.starrocks      else "NOT connected")
+    logger.info("-----------------------")
+    if not state.model_loaded:
+        logger.warning("Model not loaded — POST /train to train before using /predict")
+    logger.info("=== API ready ===")
     yield
-    # 서버 종료 시 정리 작업 (현재는 없음)
+    logger.info("=== API shutting down ===")
 
 
 app = FastAPI(
