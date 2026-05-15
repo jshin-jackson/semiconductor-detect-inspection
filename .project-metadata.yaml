@@ -13,8 +13,9 @@ prototype_version: "1.0"
 
 runtimes:
   - editor: PBJ Workbench
-    kernel: Python 3.11
+    kernel: Python 3.10
     edition: Standard
+    version: "2026.04"
 
 environment_variables:
   MINIO_ENDPOINT:
