@@ -42,12 +42,18 @@ class StorageClient:
         """
         self.bucket = config["bucket"]
 
-        # MinIO Python SDK 클라이언트 생성
+        # MinIO Python SDK client — fast-fail timeout so startup doesn't hang
+        import urllib3
+        http_client = urllib3.PoolManager(
+            timeout=urllib3.Timeout(connect=5, read=10),
+            retries=urllib3.Retry(total=1, raise_on_status=False),
+        )
         self.client = Minio(
-            endpoint=config["endpoint"],      # host:port (http:// 접두사 없음)
+            endpoint=config["endpoint"],
             access_key=config["access_key"],
             secret_key=config["secret_key"],
-            secure=config.get("secure", False),  # 로컬/개발: False, 운영: True
+            secure=config.get("secure", False),
+            http_client=http_client,
         )
 
         # 버킷이 없으면 자동 생성

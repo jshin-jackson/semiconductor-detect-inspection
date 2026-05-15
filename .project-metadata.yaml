@@ -49,6 +49,24 @@ environment_variables:
 
 tasks:
   - type: create_job
+    name: Deploy K8s Infrastructure
+    entity_label: deploy-k8s
+    script: cml/deploy_k8s.py
+    kernel: python3
+    cpu: 1
+    memory: 2
+    short_summary: Deploy MinIO, Iceberg REST, and StarRocks to Kubernetes.
+    long_summary: >-
+      Runs k8s-deploy.sh to create the semiconductor-poc namespace and deploy
+      MinIO, Iceberg REST catalog, and StarRocks FE/BE. Requires kubectl access
+      to the Kubernetes cluster. If kubectl is unavailable, this step is skipped
+      and the app runs in degraded mode (no storage / history features).
+
+  - type: run_job
+    entity_label: deploy-k8s
+    short_summary: Deploying K8s infrastructure (MinIO, Iceberg, StarRocks).
+
+  - type: create_job
     name: Install Dependencies
     entity_label: install-deps
     script: cml/install_deps.py

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
+import socket
 import uuid
 from typing import Annotated
 
@@ -66,6 +67,83 @@ async def health(state: Annotated[AppState, Depends(get_state)]) -> HealthRespon
         minio_connected=minio_ok,
         starrocks_connected=sr_ok,
     )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GET /diagnostic
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.get("/diagnostic", summary="Detailed connectivity diagnostic")
+async def diagnostic(state: Annotated[AppState, Depends(get_state)]) -> dict:
+    """
+    Tests TCP reachability and SDK-level connectivity for each external service.
+    Returns detailed error messages so operators can diagnose network issues.
+    """
+    results: dict = {}
+
+    def tcp_check(host: str, port: int, label: str) -> dict:
+        try:
+            with socket.create_connection((host, port), timeout=5):
+                return {"tcp": "ok", "host": host, "port": port}
+        except Exception as e:
+            return {"tcp": "failed", "host": host, "port": port, "error": str(e)}
+
+    cfg = state.config
+
+    # MinIO TCP + SDK check
+    minio_ep = cfg["minio"]["endpoint"]          # host:port
+    minio_host, minio_port = (minio_ep.split(":") + ["9000"])[:2]
+    tcp = tcp_check(minio_host, int(minio_port), "minio")
+    sdk_ok = False
+    sdk_err = ""
+    try:
+        if state.storage:
+            state.storage.list_objects(prefix="weights/")
+            sdk_ok = True
+        else:
+            sdk_err = "StorageClient not initialised (connection failed at startup)"
+    except Exception as e:
+        sdk_err = str(e)
+    results["minio"] = {**tcp, "sdk_connected": sdk_ok, "sdk_error": sdk_err or None,
+                        "endpoint": minio_ep}
+
+    # Iceberg REST TCP check
+    iceberg_uri = cfg["iceberg"]["rest_uri"]
+    iceberg_host = iceberg_uri.replace("http://", "").replace("https://", "").split("/")[0]
+    iceberg_h, iceberg_p = (iceberg_host.split(":") + ["8181"])[:2]
+    results["iceberg"] = {
+        **tcp_check(iceberg_h, int(iceberg_p), "iceberg"),
+        "sdk_connected": state.iceberg_writer is not None,
+        "uri": iceberg_uri,
+    }
+
+    # StarRocks TCP + ping
+    sr_host = cfg["starrocks"]["host"]
+    sr_port = int(cfg["starrocks"]["port"])
+    tcp = tcp_check(sr_host, sr_port, "starrocks")
+    ping_ok = False
+    ping_err = ""
+    try:
+        if state.starrocks:
+            ping_ok = state.starrocks.ping()
+            if not ping_ok:
+                ping_err = "SELECT 1 returned no result"
+        else:
+            ping_err = "StarRocksClient not initialised (ping failed at startup)"
+    except Exception as e:
+        ping_err = str(e)
+    results["starrocks"] = {**tcp, "ping": ping_ok, "ping_error": ping_err or None,
+                            "host": sr_host, "port": sr_port}
+
+    # Env vars actually in use
+    results["config_in_use"] = {
+        "minio_endpoint": minio_ep,
+        "iceberg_rest_uri": iceberg_uri,
+        "starrocks_host": sr_host,
+        "starrocks_port": sr_port,
+    }
+
+    return results
 
 
 # ──────────────────────────────────────────────────────────────────────────────
