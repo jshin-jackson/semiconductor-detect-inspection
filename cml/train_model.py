@@ -15,7 +15,10 @@ import subprocess
 import sys
 import os
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+try:
+    ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+except NameError:
+    ROOT = os.getcwd()
 
 
 if __name__ == "__main__":
