@@ -1,9 +1,11 @@
 """
-AMP bootstrap: Install Python dependencies and build the React frontend.
+AMP bootstrap: Install Python dependencies.
 
 This script is run as a CML Job during AMP setup (task: install-deps).
-It installs all Python packages from requirements.txt and produces the
-production frontend bundle at frontend/dist/.
+It installs all Python packages from requirements.txt.
+
+The React frontend is pre-built and committed to the repository at
+frontend/dist/, so no Node.js or npm is required in the CML runtime.
 """
 
 import subprocess
@@ -23,23 +25,20 @@ def install_python_deps() -> None:
     print("Python dependencies installed.\n")
 
 
-def build_frontend() -> None:
-    print("=== Building React frontend ===")
-    frontend_dir = os.path.join(ROOT, "frontend")
-
-    subprocess.run(["npm", "install"], cwd=frontend_dir, check=True)
-    subprocess.run(["npm", "run", "build"], cwd=frontend_dir, check=True)
-
-    dist_dir = os.path.join(frontend_dir, "dist")
-    if os.path.isdir(dist_dir):
-        print(f"Frontend build complete: {dist_dir}\n")
+def verify_frontend() -> None:
+    """Confirm the pre-built frontend is present in the repository."""
+    dist_dir = os.path.join(ROOT, "frontend", "dist")
+    index = os.path.join(dist_dir, "index.html")
+    if os.path.isfile(index):
+        print(f"Frontend bundle found: {dist_dir}\n")
     else:
-        raise RuntimeError(
-            "Frontend build failed: frontend/dist directory not found."
+        print(
+            "WARNING: frontend/dist/index.html not found. "
+            "The web UI will not be available until the frontend is built.\n"
         )
 
 
 if __name__ == "__main__":
     install_python_deps()
-    build_frontend()
+    verify_frontend()
     print("=== Install Dependencies complete ===")
