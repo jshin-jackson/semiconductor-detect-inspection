@@ -19,8 +19,11 @@ runtimes:
 
 environment_variables:
   MINIO_ENDPOINT:
-    default: "localhost:9000"
-    description: "MinIO object storage endpoint (host:port). Used to store heatmaps and model weights."
+    default: "minio.semiconductor-poc.svc.cluster.local:9000"
+    description: >-
+      MinIO object storage endpoint (host:port, no http:// prefix).
+      Default uses the K8s service DNS in the semiconductor-poc namespace.
+      For local dev with port-forward, use: localhost:9000
   MINIO_ACCESS_KEY:
     default: "admin"
     description: "MinIO access key (username)."
@@ -29,11 +32,17 @@ environment_variables:
     description: "MinIO secret key (password)."
     required: true
   ICEBERG_REST_URI:
-    default: "http://localhost:8181"
-    description: "Iceberg REST catalog URI. Used to store inspection records as Parquet tables."
+    default: "http://iceberg-rest.semiconductor-poc.svc.cluster.local:8181"
+    description: >-
+      Iceberg REST catalog URI (include http://).
+      Default uses the K8s service DNS in the semiconductor-poc namespace.
+      For local dev with port-forward, use: http://localhost:8181
   STARROCKS_HOST:
-    default: "localhost"
-    description: "StarRocks host for SQL-based inspection history and stats queries."
+    default: "starrocks-fe.semiconductor-poc.svc.cluster.local"
+    description: >-
+      StarRocks FE host for SQL-based inspection history and stats queries.
+      Default uses the K8s service DNS in the semiconductor-poc namespace.
+      For local dev with port-forward, use: localhost
   STARROCKS_PORT:
     default: "9030"
     description: "StarRocks MySQL-compatible port."
