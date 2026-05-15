@@ -1,16 +1,19 @@
 """
-반도체 결함 검사 FastAPI 애플리케이션 진입점.
+Semiconductor Defect Inspection FastAPI application entry point.
 
-서버를 시작하면 config.yaml 을 읽어 모델·MinIO·Iceberg·StarRocks 를
-자동으로 초기화합니다.
+On startup the server reads config.yaml (with environment variable overrides)
+and initialises the model, MinIO, Iceberg, and StarRocks clients.
 
-엔드포인트 목록:
-  GET  /health       — 서버/모델/MinIO/StarRocks 상태 확인
-  POST /train        — PaDiM 모델 학습
-  GET  /model        — 현재 모델 정보
-  POST /predict      — 이미지 이상 탐지 추론
-  GET  /history      — 최근 검사 이력 조회
-  GET  /stats        — 일별 이상 탐지 통계
+Endpoints:
+  GET  /health       — server / model / MinIO / StarRocks status
+  POST /train        — train the PaDiM model
+  GET  /model        — loaded model info
+  POST /predict      — anomaly detection inference
+  GET  /history      — recent inspection history
+  GET  /stats        — daily anomaly detection statistics
+
+In production (CML Application) the server also serves the pre-built React
+frontend from frontend/dist/ as static files.
 """
 
 from __future__ import annotations
@@ -20,10 +23,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
-# 프로젝트 루트 디렉터리와 기본 설정 파일 경로 계산
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_PATH = os.path.join(ROOT, "configs", "config.yaml")
+FRONTEND_DIST = os.path.join(ROOT, "frontend", "dist")
 
 
 @asynccontextmanager
@@ -42,39 +47,52 @@ async def lifespan(app: FastAPI):
     # 서버 종료 시 정리 작업 (현재는 없음)
 
 
-# FastAPI 앱 인스턴스 생성
 app = FastAPI(
-    title="반도체 결함 검사 PoC API",
+    title="Semiconductor Defect Inspection API",
     description=(
-        "PaDiM 기반 이상 탐지 API.\n\n"
-        "정상 이미지로 학습한 모델로 반도체 웨이퍼 결함을 탐지하고 "
-        "결과를 MinIO와 Apache Iceberg에 저장합니다."
+        "PaDiM-based anomaly detection API.\n\n"
+        "Detects semiconductor wafer defects using a model trained on normal images "
+        "and stores results in MinIO and Apache Iceberg."
     ),
     version="1.0.0",
-    lifespan=lifespan,  # 시작/종료 핸들러 등록
+    lifespan=lifespan,
 )
 
-# CORS 미들웨어: 모든 출처에서의 API 호출 허용 (개발/PoC 환경용)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # 실운영 시에는 허용할 도메인을 명시적으로 지정하세요
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 라우터 등록: 추론 엔드포인트와 학습 엔드포인트를 앱에 연결
 from api.routes.predict import router as predict_router  # noqa: E402
 from api.routes.train import router as train_router      # noqa: E402
 
-app.include_router(predict_router, tags=["추론"])  # /health, /predict, /history, /stats
-app.include_router(train_router, tags=["학습"])    # /train, /model
+app.include_router(predict_router, tags=["Inference"])
+app.include_router(train_router, tags=["Training"])
 
 
-@app.get("/", include_in_schema=False)
+@app.get("/docs-info", include_in_schema=False)
 async def root():
-    """루트 경로 — API 문서 링크를 안내합니다."""
     return {
-        "message": "반도체 결함 검사 PoC API",
-        "docs": "/docs",    # Swagger UI
-        "redoc": "/redoc",  # ReDoc UI
+        "message": "Semiconductor Defect Inspection API",
+        "docs": "/docs",
+        "redoc": "/redoc",
     }
+
+
+# ---------------------------------------------------------------------------
+# Serve pre-built React frontend (production / CML Application mode).
+# This must come AFTER all API routes so that API paths take priority.
+# ---------------------------------------------------------------------------
+if os.path.isdir(FRONTEND_DIST):
+    # Serve /assets/* and other static assets directly
+    assets_dir = os.path.join(FRONTEND_DIST, "assets")
+    if os.path.isdir(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_frontend(full_path: str):
+        """Catch-all: serve the React SPA index.html for client-side routing."""
+        index = os.path.join(FRONTEND_DIST, "index.html")
+        return FileResponse(index)

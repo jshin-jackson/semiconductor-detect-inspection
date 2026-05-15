@@ -1,0 +1,119 @@
+name: Semiconductor Wafer Defect Inspection
+description: >-
+  A PaDiM-based anomaly detection system for semiconductor wafer inspection.
+  Automatically generates synthetic training data, trains a PaDiM model on
+  normal wafer images, and provides a web UI for real-time defect detection
+  with heatmap visualization. No real factory images are required.
+  Inspection results are stored in Apache Iceberg via MinIO, with StarRocks
+  for SQL-based analytics.
+author: Cloudera
+date: "2026-05-14"
+specification_version: "1.0"
+prototype_version: "1.0"
+
+runtimes:
+  - editor: Workbench
+    kernel: Python 3.11
+    edition: Standard
+
+environment_variables:
+  MINIO_ENDPOINT:
+    default: "localhost:9000"
+    description: "MinIO object storage endpoint (host:port). Used to store heatmaps and model weights."
+  MINIO_ACCESS_KEY:
+    default: "admin"
+    description: "MinIO access key (username)."
+  MINIO_SECRET_KEY:
+    default: "password"
+    description: "MinIO secret key (password)."
+    required: true
+  ICEBERG_REST_URI:
+    default: "http://localhost:8181"
+    description: "Iceberg REST catalog URI. Used to store inspection records as Parquet tables."
+  STARROCKS_HOST:
+    default: "localhost"
+    description: "StarRocks host for SQL-based inspection history and stats queries."
+  STARROCKS_PORT:
+    default: "9030"
+    description: "StarRocks MySQL-compatible port."
+
+tasks:
+  - type: create_job
+    name: Install Dependencies
+    entity_label: install-deps
+    script: cml/install_deps.py
+    kernel: python3
+    cpu: 2
+    memory: 4
+    short_summary: Install Python packages and build the React frontend.
+    long_summary: >-
+      Installs all Python dependencies from requirements.txt and builds the
+      React web UI (npm install && npm run build) into frontend/dist.
+
+  - type: run_job
+    entity_label: install-deps
+    short_summary: Running dependency installation and frontend build.
+
+  - type: create_job
+    name: Generate Synthetic Data
+    entity_label: setup-data
+    script: cml/setup_data.py
+    kernel: python3
+    cpu: 2
+    memory: 4
+    short_summary: Generate synthetic normal and defect wafer images for training.
+    long_summary: >-
+      Creates 200 normal wafer images for training, 30 normal images for
+      testing, and 30 defect images (scratch, spot, contamination) for
+      evaluation. No real equipment images are needed.
+
+  - type: run_job
+    entity_label: setup-data
+    short_summary: Generating synthetic wafer images.
+
+  - type: create_job
+    name: Setup Infrastructure
+    entity_label: setup-infra
+    script: cml/setup_infra.py
+    kernel: python3
+    cpu: 1
+    memory: 2
+    short_summary: Initialize Iceberg table and StarRocks external catalog.
+    long_summary: >-
+      Creates the default.inspection_results Iceberg table in MinIO and
+      registers the iceberg_catalog external catalog in StarRocks so that
+      inspection history can be queried via SQL.
+
+  - type: run_job
+    entity_label: setup-infra
+    short_summary: Initializing Iceberg and StarRocks catalog.
+
+  - type: create_job
+    name: Train PaDiM Model
+    entity_label: train-model
+    script: cml/train_model.py
+    kernel: python3
+    cpu: 4
+    memory: 8
+    short_summary: Train PaDiM anomaly detection model on synthetic wafer images.
+    long_summary: >-
+      Trains the PaDiM model (ResNet18 backbone) on the generated normal wafer
+      images. The checkpoint is saved locally and uploaded to MinIO.
+      Training takes approximately 1-2 minutes on CPU.
+
+  - type: run_job
+    entity_label: train-model
+    short_summary: Training PaDiM model. This may take a few minutes.
+
+  - type: start_application
+    name: Semiconductor Defect Inspection UI
+    subdomain: semiconductor-inspection
+    script: app.py
+    kernel: python3
+    cpu: 2
+    memory: 4
+    short_summary: Launch the FastAPI inference server and React web UI.
+    long_summary: >-
+      Starts the FastAPI server on CDSW_APP_PORT and serves the pre-built
+      React frontend as static files. The UI provides four pages:
+      Dashboard, Inspect (drag-and-drop defect detection), History, and Stats.

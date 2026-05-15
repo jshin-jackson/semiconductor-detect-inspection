@@ -130,21 +130,58 @@ def save_result_json(
 
 def load_config(config_path: str) -> dict[str, Any]:
     """
-    YAML 형식의 설정 파일을 로드해 딕셔너리로 반환합니다.
+    Load the YAML config file and apply environment variable overrides.
 
-    configs/config.yaml 에서 모델·데이터·MinIO·Iceberg·StarRocks
-    설정값을 읽어옵니다.
+    The following environment variables override the corresponding config
+    values when set. This allows Cloudera AI AMP deployments to configure
+    external services without editing config.yaml.
+
+    | Environment variable  | Config key                     |
+    |-----------------------|--------------------------------|
+    | MINIO_ENDPOINT        | minio.endpoint                 |
+    | MINIO_ACCESS_KEY      | minio.access_key               |
+    | MINIO_SECRET_KEY      | minio.secret_key               |
+    | ICEBERG_REST_URI      | iceberg.rest_uri               |
+    | STARROCKS_HOST        | starrocks.host                 |
+    | STARROCKS_PORT        | starrocks.port (int)           |
 
     Args:
-        config_path: 설정 파일 경로 (예: configs/config.yaml)
+        config_path: Path to the YAML config file (e.g. configs/config.yaml)
 
     Returns:
-        YAML 내용을 파싱한 중첩 딕셔너리
+        Parsed config dictionary with any env var overrides applied.
     """
     import yaml
 
     with open(config_path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        cfg: dict[str, Any] = yaml.safe_load(f)
+
+    # Apply environment variable overrides
+    _env_overrides = {
+        "minio": {
+            "endpoint":   os.environ.get("MINIO_ENDPOINT"),
+            "access_key": os.environ.get("MINIO_ACCESS_KEY"),
+            "secret_key": os.environ.get("MINIO_SECRET_KEY"),
+        },
+        "iceberg": {
+            "rest_uri": os.environ.get("ICEBERG_REST_URI"),
+        },
+        "starrocks": {
+            "host": os.environ.get("STARROCKS_HOST"),
+            "port": int(os.environ["STARROCKS_PORT"])
+                    if os.environ.get("STARROCKS_PORT")
+                    else None,
+        },
+    }
+
+    for section, keys in _env_overrides.items():
+        if section not in cfg:
+            cfg[section] = {}
+        for key, value in keys.items():
+            if value is not None:
+                cfg[section][key] = value
+
+    return cfg
 
 
 def now_iso() -> str:
