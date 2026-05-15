@@ -23,7 +23,6 @@ export default function DashboardPage() {
       const [h, m, s] = await Promise.all([fetchHealth(), fetchModel(), fetchStats()]);
       setHealth(h);
       setModel(m);
-      // 오늘 날짜 통계 (첫 번째 row = 최신)
       setTodayStat(s.rows[0] ?? null);
     } catch (e) {
       setError(String(e));
@@ -34,7 +33,6 @@ export default function DashboardPage() {
 
   useEffect(() => {
     void load();
-    // 30초마다 자동 갱신
     const id = setInterval(() => void load(), 30_000);
     return () => clearInterval(id);
   }, []);
@@ -43,30 +41,30 @@ export default function DashboardPage() {
   if (error)
     return (
       <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-red-700">
-        서버 연결 실패: {error}
+        Server connection failed: {error}
       </div>
     );
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800">대시보드</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
         <button
           onClick={() => void load()}
           className="text-sm text-blue-600 hover:underline"
         >
-          새로고침
+          Refresh
         </button>
       </div>
 
-      {/* 서버 상태 카드 */}
+      {/* Server Status */}
       <section>
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-          서버 상태
+          Server Status
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatusCard
-            title="API 서버"
+            title="API Server"
             value={
               <StatusBadge
                 status={health?.status === "ok" ? "ok" : "degraded"}
@@ -75,11 +73,11 @@ export default function DashboardPage() {
             }
           />
           <StatusCard
-            title="모델"
+            title="Model"
             value={
               <StatusBadge
                 status={health?.model_loaded ? "ok" : "error"}
-                label={health?.model_loaded ? "로드됨" : "미로드"}
+                label={health?.model_loaded ? "Loaded" : "Not loaded"}
               />
             }
           />
@@ -88,7 +86,7 @@ export default function DashboardPage() {
             value={
               <StatusBadge
                 status={health?.minio_connected ? "connected" : "disconnected"}
-                label={health?.minio_connected ? "연결됨" : "오류"}
+                label={health?.minio_connected ? "Connected" : "Error"}
               />
             }
           />
@@ -97,21 +95,21 @@ export default function DashboardPage() {
             value={
               <StatusBadge
                 status={health?.starrocks_connected ? "connected" : "disconnected"}
-                label={health?.starrocks_connected ? "연결됨" : "오류"}
+                label={health?.starrocks_connected ? "Connected" : "Error"}
               />
             }
           />
         </div>
       </section>
 
-      {/* 모델 정보 카드 */}
+      {/* Model Info */}
       <section>
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-          모델 정보
+          Model Info
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatusCard
-            title="버전"
+            title="Version"
             value={
               <span className="text-sm font-mono text-gray-700 truncate" title={model?.model_version ?? "-"}>
                 {model?.model_version ?? "-"}
@@ -119,7 +117,7 @@ export default function DashboardPage() {
             }
           />
           <StatusCard
-            title="백본"
+            title="Backbone"
             value={<span className="font-medium text-gray-800">{model?.backbone ?? "-"}</span>}
           />
           <StatusCard
@@ -127,7 +125,7 @@ export default function DashboardPage() {
             value={<span className="font-medium text-gray-800">{model?.n_features ?? "-"}</span>}
           />
           <StatusCard
-            title="임계값"
+            title="Threshold"
             value={
               <span className="font-bold text-blue-600 text-lg">
                 {model?.threshold ?? "-"}
@@ -137,25 +135,25 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* 오늘 통계 */}
+      {/* Today's Stats */}
       {todayStat && (
         <section>
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            오늘 검사 통계 ({todayStat.inspection_date})
+            Today's Inspection Stats ({todayStat.inspection_date})
           </h2>
           <div className="grid grid-cols-3 gap-4">
             <BigStatCard
-              label="총 검사 건수"
+              label="Total Inspections"
               value={todayStat.total_count}
               color="text-gray-800"
             />
             <BigStatCard
-              label="결함 건수"
+              label="Defects Detected"
               value={todayStat.anomaly_count}
               color="text-red-600"
             />
             <BigStatCard
-              label="평균 이상 점수"
+              label="Avg Anomaly Score"
               value={Number(todayStat.avg_score).toFixed(4)}
               color="text-blue-600"
             />

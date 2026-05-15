@@ -12,9 +12,7 @@ export default function InspectPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
 
-  // 파일 선택 또는 드롭 시 처리
   const handleFile = useCallback(async (file: File) => {
-    // 미리보기 URL 생성
     setPreview(URL.createObjectURL(file));
     setResult(null);
     setErrorMsg(null);
@@ -58,12 +56,11 @@ export default function InspectPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-800">이미지 검사</h1>
+      <h1 className="text-2xl font-bold text-gray-800">Image Inspection</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* 왼쪽: 업로드 영역 */}
+        {/* Left: Upload area */}
         <div className="space-y-4">
-          {/* 드래그&드롭 영역 */}
           <label
             onDrop={onDrop}
             onDragOver={onDragOver}
@@ -94,19 +91,19 @@ export default function InspectPage() {
               />
             </svg>
             <p className="text-sm text-gray-600">
-              이미지를 드래그하거나 클릭해서 업로드
+              Drag & drop an image or click to upload
             </p>
             <p className="text-xs text-gray-400 mt-1">PNG / JPEG / BMP</p>
           </label>
 
-          {/* 미리보기 */}
+          {/* Preview */}
           {preview && (
             <div className="relative bg-white border border-gray-200 rounded-lg overflow-hidden">
-              <img src={preview} alt="미리보기" className="w-full object-contain max-h-64" />
+              <img src={preview} alt="Preview" className="w-full object-contain max-h-64" />
               <button
                 onClick={reset}
                 className="absolute top-2 right-2 bg-white/80 hover:bg-white rounded-full p-1 shadow text-gray-500 hover:text-gray-700"
-                title="초기화"
+                title="Reset"
               >
                 <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                   <path
@@ -119,32 +116,32 @@ export default function InspectPage() {
             </div>
           )}
 
-          {/* 추론 중 스피너 */}
+          {/* Running spinner */}
           {state === "loading" && (
             <div className="flex items-center gap-2 text-blue-600 text-sm">
               <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
                 <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
                 <path fill="currentColor" className="opacity-75" d="M4 12a8 8 0 018-8v8H4z" />
               </svg>
-              PaDiM 추론 중...
+              Running PaDiM inference...
             </div>
           )}
 
-          {/* 오류 메시지 */}
+          {/* Error */}
           {state === "error" && (
             <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">
-              추론 실패: {errorMsg}
+              Inference failed: {errorMsg}
             </div>
           )}
         </div>
 
-        {/* 오른쪽: 결과 패널 */}
+        {/* Right: Result panel */}
         <div>
           {state === "done" && result ? (
             <ResultPanel result={result} />
           ) : (
             <div className="flex items-center justify-center h-52 bg-white border-2 border-dashed border-gray-200 rounded-xl text-gray-400 text-sm">
-              왼쪽에서 이미지를 업로드하면 결과가 표시됩니다
+              Upload an image on the left to see results
             </div>
           )}
         </div>
@@ -158,40 +155,36 @@ function ResultPanel({ result }: { result: PredictResponse }) {
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-      {/* 판정 결과 헤더 */}
       <div
         className={`px-5 py-4 flex items-center justify-between ${
           isAnomaly ? "bg-red-50" : "bg-green-50"
         }`}
       >
         <div>
-          <p className="text-xs text-gray-500 mb-1">파일명</p>
+          <p className="text-xs text-gray-500 mb-1">Filename</p>
           <p className="font-medium text-gray-800 text-sm truncate max-w-xs">
             {result.filename}
           </p>
         </div>
         <StatusBadge
           status={isAnomaly ? "anomaly" : "normal"}
-          label={isAnomaly ? "결함 검출" : "정상"}
+          label={isAnomaly ? "Defect Detected" : "Normal"}
         />
       </div>
 
       <div className="p-5 space-y-5">
-        {/* 점수 게이지 */}
         <ScoreBar score={result.anomaly_score} threshold={result.threshold} />
 
-        {/* 수치 정보 */}
         <div className="grid grid-cols-2 gap-3 text-sm">
-          <InfoRow label="이상 점수" value={result.anomaly_score.toFixed(6)} />
-          <InfoRow label="임계값" value={String(result.threshold)} />
-          <InfoRow label="추론 ID" value={result.inference_id.slice(0, 8) + "..."} mono />
+          <InfoRow label="Anomaly Score" value={result.anomaly_score.toFixed(6)} />
+          <InfoRow label="Threshold" value={String(result.threshold)} />
+          <InfoRow label="Inference ID" value={result.inference_id.slice(0, 8) + "..."} mono />
           <InfoRow
-            label="히트맵"
-            value={result.heatmap_minio_path ? "저장됨" : "없음"}
+            label="Heatmap"
+            value={result.heatmap_minio_path ? "Saved" : "N/A"}
           />
         </div>
 
-        {/* 히트맵 이미지 — MinIO에 업로드된 경우 로컬 결과 폴더에서 표시 */}
         {result.result_json_path && (
           <div className="text-xs text-gray-500 bg-gray-50 rounded p-2 font-mono break-all">
             {result.result_json_path}

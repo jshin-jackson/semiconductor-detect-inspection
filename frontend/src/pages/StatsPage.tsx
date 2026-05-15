@@ -23,7 +23,6 @@ export default function StatsPage() {
     setError(null);
     try {
       const res = await fetchStats();
-      // 날짜 오름차순으로 정렬 (차트는 왼쪽→오른쪽이 시간 순서)
       const sorted = [...res.rows].sort((a, b) =>
         a.inspection_date.localeCompare(b.inspection_date)
       );
@@ -39,34 +38,31 @@ export default function StatsPage() {
     void load();
   }, []);
 
-  // 전체 집계 계산
   const totalCount = rows.reduce((s, r) => s + Number(r.total_count), 0);
   const totalAnomaly = rows.reduce((s, r) => s + Number(r.anomaly_count), 0);
   const anomalyRate = totalCount > 0 ? ((totalAnomaly / totalCount) * 100).toFixed(1) : "0.0";
 
   return (
     <div className="space-y-6">
-      {/* 헤더 */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800">일별 통계</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Daily Statistics</h1>
         <button onClick={() => void load()} className="text-sm text-blue-600 hover:underline">
-          새로고침
+          Refresh
         </button>
       </div>
 
-      {/* 오류 */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 text-sm">
-          데이터 로드 실패: {error}
+          Failed to load data: {error}
         </div>
       )}
 
-      {/* 요약 카드 */}
+      {/* Summary cards */}
       {!loading && rows.length > 0 && (
         <div className="grid grid-cols-3 gap-4">
-          <SummaryCard label="총 검사 건수" value={totalCount} color="text-gray-800" />
-          <SummaryCard label="결함 건수" value={totalAnomaly} color="text-red-600" />
-          <SummaryCard label="결함률" value={`${anomalyRate}%`} color="text-orange-600" />
+          <SummaryCard label="Total Inspections" value={totalCount} color="text-gray-800" />
+          <SummaryCard label="Defects Detected" value={totalAnomaly} color="text-red-600" />
+          <SummaryCard label="Defect Rate" value={`${anomalyRate}%`} color="text-orange-600" />
         </div>
       )}
 
@@ -74,12 +70,12 @@ export default function StatsPage() {
         <ChartSkeleton />
       ) : rows.length === 0 ? (
         <div className="bg-white border-2 border-dashed border-gray-200 rounded-xl py-16 text-center text-gray-400">
-          통계 데이터가 없습니다. 먼저 이미지를 검사해보세요.
+          No statistics available. Run some inspections first.
         </div>
       ) : (
         <>
-          {/* 검사 건수 막대 차트 */}
-          <ChartCard title="일별 검사 건수 (총 검사 vs 결함)">
+          {/* Bar chart */}
+          <ChartCard title="Daily Inspections (Total vs Defects)">
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={rows} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -92,13 +88,13 @@ export default function StatsPage() {
                 <Tooltip
                   formatter={(value: number, name: string) => [
                     value,
-                    name === "total_count" ? "총 건수" : "결함 건수",
+                    name === "total_count" ? "Total" : "Defects",
                   ]}
-                  labelFormatter={(label) => `날짜: ${label}`}
+                  labelFormatter={(label) => `Date: ${label}`}
                 />
                 <Legend
                   formatter={(value) =>
-                    value === "total_count" ? "총 검사 건수" : "결함 건수"
+                    value === "total_count" ? "Total Inspections" : "Defects"
                   }
                 />
                 <Bar dataKey="total_count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
@@ -107,8 +103,8 @@ export default function StatsPage() {
             </ResponsiveContainer>
           </ChartCard>
 
-          {/* 평균 이상 점수 꺾은선 차트 */}
-          <ChartCard title="일별 평균 이상 점수">
+          {/* Line chart */}
+          <ChartCard title="Daily Average Anomaly Score">
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={rows} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -119,10 +115,9 @@ export default function StatsPage() {
                 />
                 <YAxis domain={[0, 1]} tick={{ fontSize: 12 }} />
                 <Tooltip
-                  formatter={(value: number) => [value.toFixed(4), "평균 이상 점수"]}
-                  labelFormatter={(label) => `날짜: ${label}`}
+                  formatter={(value: number) => [value.toFixed(4), "Avg Anomaly Score"]}
+                  labelFormatter={(label) => `Date: ${label}`}
                 />
-                {/* 임계값 기준선 (0.5) */}
                 <Line
                   type="monotone"
                   dataKey="avg_score"
@@ -134,17 +129,17 @@ export default function StatsPage() {
               </LineChart>
             </ResponsiveContainer>
             <p className="text-xs text-gray-400 text-right mt-1">
-              * 점수 0.5 이상 = 결함 의심 구간
+              * Score ≥ 0.5 is flagged as a potential defect
             </p>
           </ChartCard>
 
-          {/* 원시 데이터 테이블 */}
-          <ChartCard title="날짜별 상세 수치">
+          {/* Data table */}
+          <ChartCard title="Per-Day Details">
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    {["날짜", "총 검사", "결함 수", "결함률", "평균 점수"].map((h) => (
+                    {["Date", "Total", "Defects", "Defect Rate", "Avg Score"].map((h) => (
                       <th
                         key={h}
                         className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase"
@@ -219,7 +214,6 @@ function ChartSkeleton() {
   );
 }
 
-/** "2025-03-09" → "3/9" 짧은 날짜 표시 */
 function shortDate(dateStr: string): string {
   const parts = dateStr.split("-");
   if (parts.length === 3) return `${parseInt(parts[1])}/${parseInt(parts[2])}`;

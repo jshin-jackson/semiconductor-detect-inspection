@@ -1,10 +1,10 @@
 import { NavLink } from "react-router-dom";
 
 const NAV_ITEMS = [
-  { to: "/", label: "대시보드" },
-  { to: "/inspect", label: "검사" },
-  { to: "/history", label: "이력" },
-  { to: "/stats", label: "통계" },
+  { to: "/", label: "Dashboard" },
+  { to: "/inspect", label: "Inspect" },
+  { to: "/history", label: "History" },
+  { to: "/stats", label: "Stats" },
 ];
 
 export default function Navbar() {
@@ -12,13 +12,11 @@ export default function Navbar() {
     <nav className="bg-gray-900 text-white shadow-lg">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center h-14 gap-8">
-          {/* 로고 */}
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-blue-400 font-bold text-lg">반도체 결함 검사</span>
+            <span className="text-blue-400 font-bold text-lg">Semiconductor Defect Inspection</span>
             <span className="text-xs text-gray-400 bg-gray-700 px-1.5 py-0.5 rounded">PoC</span>
           </div>
 
-          {/* 네비게이션 링크 */}
           <div className="flex gap-1">
             {NAV_ITEMS.map(({ to, label }) => (
               <NavLink
