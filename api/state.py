@@ -193,6 +193,7 @@ class AppState:
                 print("[AppState] StarRocks 연결 성공.")
             else:
                 print("[AppState] StarRocks 연결 실패 (기능 제한됨).")
+                self.starrocks = None
         except Exception as e:
             print(f"[AppState] StarRocks 초기화 실패 (기능 제한됨): {e}")
 
