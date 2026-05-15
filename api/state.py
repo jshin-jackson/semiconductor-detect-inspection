@@ -162,47 +162,34 @@ class AppState:
         """
         self.config = load_config(config_path)
 
-        # ── 1. MinIO 클라이언트 초기화 ─────────────────────────────────────────
-        # 히트맵 PNG·모델 가중치를 MinIO 오브젝트 스토리지에 저장합니다.
+        # ── 1. Storage (MinIO → local filesystem fallback) ────────────────────
         try:
             from src.storage import StorageClient
-
             self.storage = StorageClient(self.config["minio"])
-            logger.info("MinIO connected  endpoint=%s", self.config["minio"]["endpoint"])
+            # StorageClient factory logs its own backend selection
         except Exception as e:
-            logger.warning("MinIO NOT connected: %s", e)
+            logger.warning("Storage init error (unexpected): %s", e)
 
-        # ── 2. Iceberg 클라이언트 초기화 ──────────────────────────────────────
-        # 추론 결과를 Apache Iceberg 테이블에 Parquet 형식으로 기록합니다.
-        # MinIO 설정도 함께 전달해 S3 접근 자격증명을 제공합니다.
+        # ── 2. Iceberg (optional — skipped when MinIO is unavailable) ─────────
         try:
             from src.iceberg_writer import IcebergWriter
-
             self.iceberg_writer = IcebergWriter(
                 self.config["iceberg"],
                 minio_config=self.config.get("minio"),
             )
             logger.info("Iceberg connected  uri=%s", self.config["iceberg"]["rest_uri"])
         except Exception as e:
-            logger.warning("Iceberg NOT connected: %s", e)
+            logger.warning("Iceberg NOT connected (non-fatal): %s", e)
 
-        # ── 3. StarRocks 클라이언트 초기화 ────────────────────────────────────
-        # Iceberg External Catalog 를 통해 검사 이력·통계를 SQL 로 조회합니다.
+        # ── 3. Database (StarRocks → SQLite fallback) ──────────────────────────
+        # StarRocksClient factory tries StarRocks first; falls back to SQLite.
+        # Either way self.starrocks is always set to a working client.
         try:
             from src.database import StarRocksClient
-
             self.starrocks = StarRocksClient(self.config["starrocks"])
-            if self.starrocks.ping():
-                logger.info("StarRocks connected  host=%s port=%s",
-                            self.config["starrocks"]["host"],
-                            self.config["starrocks"]["port"])
-            else:
-                logger.warning("StarRocks NOT connected (ping failed)  host=%s port=%s",
-                               self.config["starrocks"]["host"],
-                               self.config["starrocks"]["port"])
-                self.starrocks = None
+            # Factory logs which backend was selected
         except Exception as e:
-            logger.warning("StarRocks NOT connected: %s", e)
+            logger.warning("Database init error (unexpected): %s", e)
 
         # ── 4. 저장된 체크포인트 자동 로드 ────────────────────────────────────
         # weights/ 디렉터리에 이미 학습된 체크포인트가 있으면 즉시 로드합니다.

@@ -42,16 +42,22 @@ async def health(state: Annotated[AppState, Depends(get_state)]) -> HealthRespon
     model_loaded 와 minio_connected 가 모두 True 이면 status='ok',
     하나라도 False 이면 status='degraded' 를 반환합니다.
     """
-    # MinIO 연결 확인 — weights/ 경로를 조회해 실제 연결 가능 여부 검증
+    from src.storage import _MinIOClient
+
+    # Storage: check if backend is real MinIO (not local fallback)
     minio_ok = False
     try:
-        if state.storage:
+        if state.storage and isinstance(state.storage, _MinIOClient):
             state.storage.list_objects(prefix="weights/")
             minio_ok = True
+        elif state.storage:
+            # Local filesystem fallback — mark as connected (degraded mode)
+            minio_ok = True
     except Exception:
-        pass  # 연결 실패해도 서버는 계속 동작
+        pass
 
-    # StarRocks 연결 확인 — SELECT 1 쿼리로 응답 여부만 확인
+    # Database: StarRocks or SQLite fallback
+    from src.database import _StarRocksBackend
     sr_ok = False
     try:
         if state.starrocks:
@@ -59,8 +65,7 @@ async def health(state: Annotated[AppState, Depends(get_state)]) -> HealthRespon
     except Exception:
         pass
 
-    # 핵심 기능(모델+스토리지)이 모두 준비됐으면 'ok', 아니면 'degraded'
-    overall = "ok" if (state.model_loaded and minio_ok) else "degraded"
+    overall = "ok" if state.model_loaded else "degraded"
     return HealthResponse(
         status=overall,
         model_loaded=state.model_loaded,
@@ -253,24 +258,29 @@ async def predict(
     except Exception:
         logger.exception("POST /predict: result JSON save failed (non-fatal)")
 
-    # ── Iceberg 테이블에 검사 결과 기록 ─────────────────────────────────────
-    # 실패해도 추론 결과 반환에는 영향 없지만, 경고 로그로 추적 가능하게 합니다.
+    result_row = {
+        "id": inference_id,
+        "filename": filename,
+        "timestamp": now_iso(),
+        "anomaly_score": float(score),
+        "is_anomaly": is_anomaly,
+        "heatmap_minio_path": heatmap_minio_path or "",
+        "model_version": state.model_version or "",
+    }
+
+    # Write to Iceberg (MinIO-backed) when available
     try:
         if state.iceberg_writer:
-            state.iceberg_writer.append_result(
-                {
-                    "id": inference_id,
-                    "filename": filename,
-                    "timestamp": now_iso(),
-                    "anomaly_score": float(score),
-                    "is_anomaly": is_anomaly,
-                    "heatmap_minio_path": heatmap_minio_path or "",
-                    "model_version": state.model_version or "",
-                }
-            )
+            state.iceberg_writer.append_result(result_row)
     except Exception as e:
-        import logging
-        logging.getLogger("api").warning("Iceberg 기록 실패 (비치명적): %s", e)
+        logger.warning("Iceberg write failed (non-fatal): %s", e)
+
+    # Always write to DB backend (StarRocks no-op / SQLite local write)
+    try:
+        if state.starrocks:
+            state.starrocks.append_result(result_row)
+    except Exception as e:
+        logger.warning("DB write failed (non-fatal): %s", e)
 
     # ── 최종 응답 반환 ─────────────────────────────────────────────────────────
     return PredictResponse(

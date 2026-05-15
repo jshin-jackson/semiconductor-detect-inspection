@@ -1,20 +1,19 @@
 """
 AMP bootstrap: Deploy K8s infrastructure (MinIO, Iceberg REST, StarRocks).
 
-This script runs ./scripts/k8s-deploy.sh from within the CML environment.
-It requires that kubectl is available and that the CML service account has
-permission to create resources in the semiconductor-poc namespace.
+Attempts to deploy ./scripts/k8s-deploy.sh if kubectl is available.
+If kubectl is unavailable (e.g. CML sandbox), skips gracefully — the
+FastAPI app will fall back to local storage and SQLite automatically.
 
-If kubectl is unavailable or permissions are insufficient, the script exits
-with code 0 (non-fatal) so the remaining AMP steps continue. The FastAPI
-application handles missing services gracefully.
+NOTE: sys.exit() is intentionally NOT used here because calling it inside
+a CML/IPython kernel raises SystemExit which is displayed as an error even
+when exit code is 0.  Instead the script simply returns after printing.
 """
 
 import os
 import subprocess
-import sys
 
-ROOT = try_root = None
+ROOT = None
 try:
     ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 except NameError:
@@ -24,7 +23,7 @@ except NameError:
 def kubectl_available() -> bool:
     try:
         result = subprocess.run(
-            ["kubectl", "version", "--client", "--short"],
+            ["kubectl", "version", "--client"],
             capture_output=True, timeout=10,
         )
         return result.returncode == 0
@@ -32,27 +31,20 @@ def kubectl_available() -> bool:
         return False
 
 
-if __name__ == "__main__":
-    print("=== Deploy K8s Infrastructure (MinIO / Iceberg REST / StarRocks) ===")
+print("=== Deploy K8s Infrastructure (MinIO / Iceberg REST / StarRocks) ===")
 
-    if not kubectl_available():
-        print("WARNING: kubectl not found or not reachable.")
-        print("Skipping K8s deployment — services must be running externally.")
-        print("Set MINIO_ENDPOINT / ICEBERG_REST_URI / STARROCKS_HOST env vars")
-        print("to point to externally accessible service endpoints.")
-        sys.exit(0)
-
+if not kubectl_available():
+    print("INFO: kubectl not available in this environment.")
+    print("The app will use local storage (filesystem) and SQLite as fallbacks.")
+    print("MinIO / Iceberg / StarRocks features will be disabled.")
+else:
     print("kubectl found. Deploying to semiconductor-poc namespace ...")
     deploy_script = os.path.join(ROOT, "scripts", "k8s-deploy.sh")
-    result = subprocess.run(
-        ["bash", deploy_script],
-        cwd=ROOT,
-    )
-
+    result = subprocess.run(["bash", deploy_script], cwd=ROOT)
     if result.returncode != 0:
         print(f"WARNING: k8s-deploy.sh exited with code {result.returncode}.")
-        print("The API server will start in degraded mode (no MinIO / StarRocks).")
+        print("The API server will start in degraded mode.")
     else:
         print("K8s infrastructure deployed successfully.")
 
-    print("=== Deploy K8s Infrastructure complete ===")
+print("=== Deploy K8s Infrastructure complete ===")
