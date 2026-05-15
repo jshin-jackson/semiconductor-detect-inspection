@@ -1,0 +1,35 @@
+name: Semiconductor Detect Inspection
+
+entries:
+ - title: Semiconductor Wafer Defect Inspection
+   label: semiconductor-wafer-defect-inspection
+   short_description: |
+     PaDiM-based anomaly detection for semiconductor wafer inspection with a full web UI. No real factory images required — synthetic data is generated automatically.
+   long_description: |
+     This AMP demonstrates a complete semiconductor wafer defect inspection pipeline using the PaDiM (Patch Distribution Modeling) anomaly detection algorithm.
+
+     The system automatically generates synthetic wafer images, trains a PaDiM model (ResNet18 backbone) on normal images, and provides a React web UI for real-time defect detection with heatmap visualization. Inspection results are stored in Apache Iceberg via MinIO, with StarRocks for SQL-based analytics.
+
+     Key highlights:
+     - No real equipment images needed: synthetic normal and defect images (scratch, spot, contamination) are generated automatically
+     - Full web UI: Dashboard, Inspect (drag-and-drop), History, and Stats pages
+     - Automated pipeline: data generation → model training → inference server → web app, all wired as CML Jobs and an Application
+     - External services (MinIO, Iceberg REST, StarRocks) are configurable via environment variables
+
+     ---------------------------
+     IMPORTANT: Please read the following before proceeding. This AMP includes or otherwise depends on certain third party software packages. Information about such third party software packages are made available in the notice file associated with this AMP. By configuring and launching this AMP, you will cause such third party software packages to be downloaded and installed into your environment, in some instances, from third parties' websites. For each third party software package, please see the notice file and the applicable websites for more information, including the applicable license terms. If you do not wish to download and install the third party software packages, do not configure, launch or otherwise use this AMP. By configuring, launching or otherwise using the AMP, you acknowledge the foregoing statement and agree that Cloudera is not responsible or liable in any way for the third party software packages.
+   image_path: "https://github.com/jshin-jackson/semiconductor-detect-inspection/blob/main/docs/screenshots/screenshot-dashboard.png?raw=true"
+   tags:
+   - Anomaly Detection
+   - Computer Vision
+   - Manufacturing
+   - PyTorch
+   - PaDiM
+   - FastAPI
+   - React
+   - Apache Iceberg
+   - MinIO
+   - StarRocks
+   git_url: "https://github.com/jshin-jackson/semiconductor-detect-inspection"
+   is_prototype: true
+   is_new: true
