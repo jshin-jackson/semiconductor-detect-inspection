@@ -1,5 +1,68 @@
 # Semiconductor Defect Inspection PoC
 
+## Deploy on Cloudera AI (AMP)
+
+This project is registered as a **Cloudera AI AMP (Applied ML Prototype)**. You can deploy it in a few clicks — no manual setup needed.
+
+### Step 1 — Add the Catalog Source
+
+Go to **Site Administration → AMPs** and add a new source:
+
+- **Type**: Catalog File URL
+- **URL**: `https://raw.githubusercontent.com/jshin-jackson/semiconductor-detect-inspection/cloudera-amp-release/catalog.yaml`
+
+![Add catalog source](docs/screenshots/amp-catalog-source.png)
+
+---
+
+### Step 2 — Find and Deploy the AMP
+
+Go to **AMPs** in the left sidebar. Select **Semiconductor Detect Inspection** as the source filter. Click **Deploy** on the tile.
+
+![AMP catalog tile](docs/screenshots/amp-catalog-tile.png)
+
+---
+
+### Step 3 — AMP runs 9 setup steps automatically
+
+The AMP installs all dependencies, generates training data, trains the model, and launches the web UI — no manual commands needed.
+
+![AMP setup steps](docs/screenshots/amp-setup-steps.png)
+
+---
+
+### Step 4 — Application is live
+
+Once all steps complete, the Application starts automatically.
+
+![Application running](docs/screenshots/amp-application-running.png)
+
+---
+
+### Step 5 — Open the Web UI
+
+Click the application link to open the browser UI. All four pages work out of the box.
+
+| Dashboard | Inspect |
+|-----------|---------|
+| ![Dashboard](docs/screenshots/cml-dashboard.png) | ![Inspect defect](docs/screenshots/cml-inspect-defect.png) |
+
+| History | Stats |
+|---------|-------|
+| ![History](docs/screenshots/cml-history.png) | ![Stats](docs/screenshots/cml-stats.png) |
+
+**Dashboard** shows API server status, model info, and today's inspection statistics — all services green.
+
+**Inspect** — drag & drop a wafer image. Normal images score near 0; defects score above 0.5.
+
+**History** — every inspection is saved automatically and listed here with score, result, and timestamp.
+
+**Stats** — daily bar chart and line chart showing inspection counts and average anomaly scores.
+
+> **No external services required.** When MinIO / StarRocks are not available, the app automatically uses local filesystem + SQLite so everything works in a self-contained CML environment.
+
+---
+
 ## What is this?
 
 > **"Upload a wafer image, and the AI tells you if there's a defect — in under 0.01 seconds."**
