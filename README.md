@@ -1,4 +1,4 @@
-# Q2 2026 Personal Learning Objective
+# 2026 MBO (Management By Objectives)
 
 ## Objective
 
@@ -61,21 +61,21 @@ Once all steps complete, the Application starts automatically.
 
 Click the application link to open the browser UI. All four pages work out of the box.
 
-| Dashboard | Inspect |
-|-----------|---------|
-| ![Dashboard](docs/screenshots/cml-dashboard.png) | ![Inspect defect](docs/screenshots/cml-inspect-defect.png) |
+**Dashboard** — API server, model, MinIO, and StarRocks all show **Connected**. Today's inspection count, defect count, and average score update every 30 seconds.
 
-| History | Stats |
-|---------|-------|
-| ![History](docs/screenshots/cml-history.png) | ![Stats](docs/screenshots/cml-stats.png) |
+![Dashboard](docs/screenshots/cml-dashboard.png)
 
-**Dashboard** shows API server status, model info, and today's inspection statistics — all services green.
+**Inspect** — drag & drop a wafer image. The model scores it instantly. Normal images score near 0 (blue bar); defects score above 0.5 (red bar).
 
-**Inspect** — drag & drop a wafer image. Normal images score near 0; defects score above 0.5.
+![Inspect](docs/screenshots/cml-inspect-normal.png)
 
-**History** — every inspection is saved automatically and listed here with score, result, and timestamp.
+**History** — every inspection result is saved automatically and listed with filename, anomaly score, result badge, timestamp, and model version.
 
-**Stats** — daily bar chart and line chart showing inspection counts and average anomaly scores.
+![History](docs/screenshots/cml-history.png)
+
+**Stats** — daily bar chart (total vs defects) and line chart (average anomaly score trend) with a per-day summary table.
+
+![Stats](docs/screenshots/cml-stats.png)
 
 > **No external services required.** When MinIO / StarRocks are not available, the app automatically uses local filesystem + SQLite so everything works in a self-contained CML environment.
 
@@ -118,8 +118,8 @@ Upload a wafer image
 |-----------|---------|
 | ![Dashboard](docs/screenshots/screenshot-dashboard.png) | ![Inspect](docs/screenshots/screenshot-inspect.png) |
 
-| History | Daily Stats |
-|---------|-------------|
+| History | Stats |
+|---------|-------|
 | ![History](docs/screenshots/screenshot-history.png) | ![Stats](docs/screenshots/screenshot-stats.png) |
 
 ---
