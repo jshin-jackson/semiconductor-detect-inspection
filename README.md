@@ -41,17 +41,19 @@ Go to **AMPs** in the left sidebar. Select **Semiconductor Detect Inspection** a
 
 ---
 
-### Step 3 — AMP runs 9 setup steps automatically
+### Step 3 — AMP runs all setup steps automatically
 
-The AMP installs all dependencies, generates training data, trains the model, and launches the web UI — no manual commands needed.
+The AMP installs all dependencies, generates training data, trains the model, and launches the web UI — no manual commands needed. All steps complete with a green checkmark.
 
 ![AMP setup steps](docs/screenshots/amp-setup-steps.png)
 
 ---
 
-### Step 4 — Application is live
+### Step 4 — Project and Application are live
 
-Once all steps complete, the Application starts automatically.
+The project appears in your Projects list and the Application starts automatically.
+
+![Project created](docs/screenshots/amp-project-created.png)
 
 ![Application running](docs/screenshots/amp-application-running.png)
 
