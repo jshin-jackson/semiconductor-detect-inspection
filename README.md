@@ -1,4 +1,22 @@
-# Semiconductor Defect Inspection PoC
+# Q2 2026 Personal Learning Objective
+
+## Objective
+
+> Build a complete, end-to-end AI/ML application on the **Cloudera AI platform** from scratch — covering model development, API design, frontend engineering, infrastructure automation, and AMP deployment — entirely through self-directed study.
+
+## Key Results
+
+| # | What I learned | How I demonstrated it |
+|---|---------------|----------------------|
+| 1 | **Anomaly detection (PaDiM)** | Trained a ResNet18-backed PaDiM model on synthetic wafer images; no real equipment data needed |
+| 2 | **Full-stack ML application** | Built a FastAPI inference server + React web UI with 4 pages (Dashboard, Inspect, History, Stats) |
+| 3 | **Data lakehouse stack** | Integrated Apache Iceberg, MinIO object storage, and StarRocks SQL analytics |
+| 4 | **Cloudera AI AMP development** | Packaged the entire project as a one-click deployable AMP with automated setup tasks |
+| 5 | **Production resilience** | Added automatic local filesystem + SQLite fallbacks so the app runs without any external services |
+
+---
+
+# Semiconductor Defect Inspection
 
 ## Deploy on Cloudera AI (AMP)
 
